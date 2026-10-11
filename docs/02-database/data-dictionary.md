@@ -102,15 +102,17 @@
 
 ## 4. النطاق 3: العمليات الميدانية والوزن والنفايات (Waste Operations & Weighing)
 
-### 4.1 جدول تصنيفات المواد القابلة للتدوير (`waste_categories`)
+### 4.1 جدول مسارات الفرز المعتمدة وأسعار النقاط (`material_prices` / `waste_categories`)
+وفق الوثيقة التشغيلية المعتمدة لمشروع أثر: مساران فقط لفرز المصدر (عضوي وجاف)، بالإضافة إلى المرفوض الذي لا يمنح أي نقاط.
+
 | اسم الحقل | النوع البرمجي | القيود | الوصف |
 | :--- | :--- | :--- | :--- |
-| `id` | `UUID` | `PRIMARY KEY` | المعرف الفريد للمادة |
-| `name_ar` | `VARCHAR(80)` | `NOT NULL UNIQUE` | اسم الخامة (بلاستيك صلب PET، ورق وكرتون، ألومنيوم، خردة إلكترونية) |
-| `name_en` | `VARCHAR(80)` | `NOT NULL UNIQUE` | الاسم البرمجي الدولي للمادة |
-| `points_per_kg` | `INT` | `NOT NULL CHECK (points_per_kg >= 0)` | عدد النقاط الخضراء الممنوحة لكل كيلوغرام صافٍ |
-| `max_threshold_kg`| `DECIMAL(8,2)`| `NOT NULL DEFAULT 50.00` | الحد الأقصى المتوقع للوزنة الواحدة لمنع التلاعب والتحايل |
-| `is_active` | `BOOLEAN` | `DEFAULT TRUE` | حالة تفعيل استلام المادة في العقدة التشغيلية |
+| `id` | `UUID` | `PRIMARY KEY` | المعرف الفريد للمسار |
+| `stream_type` | `waste_stream_enum`| `NOT NULL UNIQUE` | مسار الفرز: `ORGANIC` (عضوي)، `DRY` (جاف)، `REJECTED` (مرفوض) |
+| `name_ar` | `VARCHAR(80)` | `NOT NULL UNIQUE` | اسم المسار بالعربية (عضوي، جاف، مرفوض) |
+| `points_per_kg` | `INT` | `NOT NULL CHECK (points_per_kg >= 0)` | عدد النقاط الخضراء الممنوحة لكل كيلوغرام صافٍ (المرفوض = 0 نقاط) |
+| `max_threshold_kg`| `DECIMAL(8,2)`| `NOT NULL DEFAULT 50.00` | الحد الأقصى المتوقع للوزنة الواحدة في الزيارة لرصد الشذوذ |
+| `is_active` | `BOOLEAN` | `DEFAULT TRUE` | حالة تفعيل استلام المسار في العقدة التشغيلية |
 
 ### 4.2 جدول طلبات استلام وفرز النفايات (`service_requests`)
 سجل طلبات الجمع المنزلي المقدمة من التطبيق المحمول.
@@ -129,7 +131,7 @@
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL` | توقيت رفع الطلب |
 
 ### 4.3 جدول مهام التكليف الميداني (`worker_tasks`)
-توزيع العمليات الميدانية على أسطول الدراجات وعمال البلدية.
+توزيع العمليات الميدانية على أسطول الدراجات وعمال الجمع.
 
 | اسم الحقل | النوع البرمجي | القيود | الوصف |
 | :--- | :--- | :--- | :--- |
@@ -139,26 +141,25 @@
 | `status` | `task_status_enum`| `NOT NULL DEFAULT 'ASSIGNED'` | الحالات: `ASSIGNED`, `ACKNOWLEDGED`, `EN_ROUTE`, `AT_LOCATION`, `COMPLETED`, `FAILED` |
 | `assigned_by` | `UUID` | `REFERENCES users(id)` | الموجه التشغيلي أو النظام الآلي |
 | `dispatched_at` | `TIMESTAMPTZ` | `NOT NULL` | وقت الإرسال |
-| `acknowledged_at`| `TIMESTAMPTZ`| `NULL` | وقت استلام العامل للإشعار |
+| `acknowledged_at`| `TIMESTAMPTZ`| `NULL` | وقت استلام العامل للإشعار (مهلة 10 دقائق قبل إعادة التكليف) |
 | `arrived_at` | `TIMESTAMPTZ` | `NULL` | وقت الوصول لموقع المواطن |
 | `completed_at` | `TIMESTAMPTZ` | `NULL` | وقت إتمام المهمة بنجاح |
 
-### 4.4 جدول عمليات الوزن الميداني المقيدة (`collection_weighings`)
-تسجيل قياسات الموازين الذكية (IoT/Bluetooth Smart Scale) والمراجعة.
+### 4.4 جدول بنود وأوزان الجمع الميداني (`collection_items`)
+تسجيل قياسات وأوزان الجمع الميداني المدخلة يدوياً لكل مسار (عضوي، جاف، مرفوض) مع تسجيل رقم الميزان وصورة الإثبات.
 
 | اسم الحقل | النوع البرمجي | القيود | الوصف |
 | :--- | :--- | :--- | :--- |
-| `id` | `UUID` | `PRIMARY KEY` | المعرف الفريد لعملية الوزن |
-| `request_id` | `UUID` | `REFERENCES service_requests(id)` | الطلب المعني |
-| `category_id` | `UUID` | `REFERENCES waste_categories(id)`| نوع المادة الموزونة |
-| `gross_weight_kg`| `DECIMAL(8,3)`| `NOT NULL CHECK (gross_weight_kg > 0)` | الوزن الإجمالي المسجل من الميزان |
-| `tare_weight_kg` | `DECIMAL(8,3)`| `NOT NULL DEFAULT 0.000` | وزن الحاوية أو الشوال الفارغ |
-| `net_weight_kg` | `DECIMAL(8,3)` | `GENERATED ALWAYS AS (gross_weight_kg - tare_weight_kg) STORED` | الوزن الصافي المحسوب آلياً |
-| `scale_device_id`| `VARCHAR(60)` | `NOT NULL` | المعرف التقني لماكينة الميزان الرقمي المقترن |
-| `anomaly_flag` | `BOOLEAN` | `DEFAULT FALSE` | مؤشر وجود انحراف أو قفزة غير طبيعية في الوزن |
-| `anomaly_reason` | `VARCHAR(255)` | `NULL` | تفاصيل رصد الشذوذ (تجاوز الحد، وزن مفرط، عدم تطابق الموقع) |
-| `verified_by_resident` | `BOOLEAN` | `DEFAULT FALSE` | تأكيد المواطن للوزن عبر التوقيع الإلكتروني أو الـ OTP |
-| `recorded_at` | `TIMESTAMPTZ` | `NOT NULL` | لحظة القراءة الميدانية |
+| `id` | `UUID` | `PRIMARY KEY` | المعرف الفريد لبند الوزن |
+| `visit_id` | `UUID` | `REFERENCES collection_visits(id)` | زيارة الجمع الميدانية المعنية |
+| `stream_type` | `waste_stream_enum`| `NOT NULL` | مسار الفرز: `ORGANIC` (عضوي), `DRY` (جاف), `REJECTED` (مرفوض - 0 نقاط) |
+| `net_weight_kg` | `DECIMAL(8,3)` | `NOT NULL CHECK (net_weight_kg >= 0)` | الوزن الصافي المدخل ميدانياً من قبل العامل |
+| `scale_reference`| `VARCHAR(60)` | `NOT NULL` | المعرف أو الرقم التسلسلي للميزان الميداني المستخدم |
+| `evidence_reference`| `VARCHAR(255)`| `NULL` | المعرف المرجعي أو رابط صورة الإثبات التوثيقية |
+| `anomaly_flag` | `BOOLEAN` | `DEFAULT FALSE` | مؤشر وجود انحراف أو شذوذ غير طبيعي في الوزن |
+| `anomaly_reason` | `VARCHAR(255)` | `NULL` | تفاصيل رصد الشذوذ (تجاوز سقف الوزن التقديري للمسار) |
+| `points_awarded`| `INT` | `NOT NULL DEFAULT 0` | النقاط الممنوحة (0 للمرفوض، ومحسوبة للعضوي والجاف) |
+| `recorded_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | لحظة القراءة والتسجيل الميداني |
 
 ---
 
@@ -234,24 +235,25 @@
 
 ---
 
-## 7. النطاق 6: الدعم الفني وخدمة العملاء (Support & CRM Context)
+## 7. النطاق 6: الحوادث والبلاغات الميدانية (Incidents & Operational Governance)
 
-### 7.1 جدول تذاكر الشكاوى والمقترحات (`support_tickets`)
-إدارة البلاغات ومشاكل الأوزان وتأخر عمال الجمع.
+### 7.1 جدول بلاغات الميدان والحوادث التشغيلية (`incident_reports`)
+توثيق بلاغات الحوادث الميدانية ونزاعات الأوزان أو تعثر الجمع، ومراجعتها واعتمادها من المشرفين خلال 24 ساعة.
 
 | اسم الحقل | النوع البرمجي | القيود | الوصف |
 | :--- | :--- | :--- | :--- |
-| `id` | `UUID` | `PRIMARY KEY` | المعرف الفريد للتذكرة |
-| `ticket_number` | `VARCHAR(25)` | `UNIQUE NOT NULL` | رقم البلاغ (مثال: `TCK-2026-0042`) |
-| `resident_id` | `UUID` | `REFERENCES users(id)` | العميل الشاكي |
-| `related_request_id` | `UUID` | `NULL REFERENCES service_requests(id)` | الطلب المعني في حال وجود نزاع وزني |
-| `category` | `ticket_cat_enum` | `NOT NULL` | التصنيف: `WEIGHT_DISPUTE`, `DELAYED_PICKUP`, `APP_ISSUE`, `STORE_ORDER_ISSUE` |
-| `priority` | `ticket_priority_enum`| `DEFAULT 'MEDIUM'` | الأولوية: `LOW`, `MEDIUM`, `HIGH`, `URGENT` |
-| `status` | `ticket_status_enum`| `DEFAULT 'OPEN'` | الحالات: `OPEN`, `TRIAGED`, `IN_PROGRESS`, `RESOLVED`, `CLOSED` |
-| `assigned_agent_id`| `UUID` | `NULL REFERENCES users(id)` | موظف خدمة العملاء المكلف بالحل |
-| `resolution_summary`| `TEXT` | `NULL` | ملخص الحل والتسوية المعتمدة |
-| `sla_deadline` | `TIMESTAMPTZ` | `NOT NULL` | الحد الأقصى للاستجابة وفق اتفاقية مستوى الخدمة |
-| `created_at` | `TIMESTAMPTZ` | `NOT NULL` | وقت فتح البلاغ |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد للبلاغ |
+| `incident_type` | `incident_type_enum`| `NOT NULL` | التصنيف: `WEIGHT_ANOMALY`, `RESIDENT_DISPUTE`, `COLLECTION_FAILURE`, `SAFETY_VIOLATION`, `OTHER` |
+| `household_id` | `UUID` | `NULL REFERENCES households(id)` | الأسرة المعنية بالنزاع أو البلاغ |
+| `visit_id` | `UUID` | `NULL REFERENCES collection_visits(id)`| زيارة الجمع الميدانية المرتبطة |
+| `reported_by_worker_id`| `UUID`| `NULL REFERENCES users(id)` | العامل الميداني رافع البلاغ |
+| `description` | `TEXT` | `NOT NULL` | تفاصيل البلاغ والملاحظات الميدانية |
+| `photo_evidence_url`| `VARCHAR(500)`| `NULL` | رابط صورة الإثبات الميدانية |
+| `status` | `incident_status_enum`| `NOT NULL DEFAULT 'OPEN'` | الحالات: `OPEN`, `INVESTIGATING`, `RESOLVED`, `REJECTED` |
+| `resolution_notes`| `TEXT` | `NULL` | ملاحظات وتوجيه المشرف الإداري لحل البلاغ |
+| `resolved_by_supervisor_id`| `UUID`| `NULL REFERENCES users(id)`| المشرف الإداري المعتمد للحل |
+| `resolved_at` | `TIMESTAMPTZ` | `NULL` | وقت إغلاق واعتماد الحل (خلال 24 ساعة) |
+| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت تسجيل البلاغ |
 
 ---
 

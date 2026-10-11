@@ -50,13 +50,14 @@ flowchart TD
 
     subgraph CoreBackend ["الخادم الأساسي (Node.js / TypeScript Core)"]
         M1["وحدة الهوية والصلاحيات (Identity & RBAC)"]
-        M2["وحدة النطاق والمكان (Geofence & PostGIS)"]
-        M3["وحدة الإسناد والمهام (Task Dispatch)"]
-        M4["وحدة الجمع والموازين (Weighing & Intake)"]
-        M5["وحدة المحاسبة والنقاط (Double-Entry Ledger)"]
-        M6["وحدة المتجر والمخزون (Store & Catalog)"]
-        M7["وحدة الشكاوى والدعم (CRM & Tickets)"]
-        M8["وحدة التدقيق الشامل (System Audit)"]
+        M2["وحدة إدارة الأسر ورموز الـ QR (Households & Cards)"]
+        M3["وحدة عقدة المنصورة والحدود (Active Node & Scope)"]
+        M4["وحدة الإسناد والمهام (Task Dispatch)"]
+        M5["وحدة الزيارات والأوزان (Visits: Organic / Dry / Rejected)"]
+        M6["وحدة دفتر الأستاذ المزدوج (Double-Entry Ledger)"]
+        M7["وحدة المتجر وإثباتات الدفع (Store & Payment Review)"]
+        M8["وحدة شركاء الاسترداد (Resource Partners)"]
+        M9["وحدة البلاغات والاستثناءات والتدقيق (Incidents & Audit)"]
     end
 
     subgraph WorkerPool ["معالجات المهام الخلفية (TypeScript Workers)"]

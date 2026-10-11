@@ -21,7 +21,7 @@
   "type": "https://athar.aden.gov.ye/errors/weight-anomaly-detected",
   "title": "Weight Anomaly Detected",
   "status": 422,
-  "detail": "الوزن المسجل (55.4 كجم) يتجاوز الحد الأقصى المسموح به لخامة البلاستيك للمنزل الواحد.",
+  "detail": "الوزن المسجل (55.4 كجم) يتجاوز الحد الأقصى المسموح به للمسار الجاف للزيارة الواحدة.",
   "instance": "/v1/collection/weigh",
   "requestId": "req-89a1-43ef",
   "invalidParams": [
@@ -127,7 +127,7 @@
         "id": "018f25ba-1002-7000-8000-000000000002",
         "type": "MINT_RECYCLING",
         "amount": 210,
-        "description": "جمع 14 كجم بلاستيك PET",
+        "description": "جمع 14 كجم مخلفات جافة مفرزة",
         "createdAt": "2026-10-10T14:22:10Z"
       }
     ]
@@ -138,57 +138,52 @@
 
 ## 4. واجهات تطبيق عامل الجمع الميداني (Field Worker Endpoints)
 
-### `GET /v1/worker/tasks`
-استعلام المهام الميدانية المسندة للعامل في ورديته الحالية.
-* **معاملات الاستعلام (Query Params):** `?status=ASSIGNED,EN_ROUTE`
+### `POST /v1/qr/resolve`
+حل رمز البطاقة الفيزيائية الممسوح بكاميرا هاتف العامل وربطه بالمهمة.
+* **جسم الطلب:**
+  ```json
+  {
+    "qrCode": "MN-48192",
+    "taskId": "018f25bc-9901-7000-8000-111122223333"
+  }
+  ```
 * **الاستجابة الناجحة (200 OK):**
   ```json
-  [
-    {
-      "taskId": "018f25bc-9901-7000-8000-111122223333",
-      "trackingNumber": "ATHAR-MNSR-2026-10492",
-      "status": "ASSIGNED",
-      "residentName": "أحمد عبدالله",
-      "address": "حي ريمي - شارع التسعين - عمارة 14",
-      "coordinates": {
-        "latitude": 12.862410,
-        "longitude": 45.008920
-      },
-      "estimatedKg": 12.5
-    }
-  ]
+  {
+    "householdId": "018f25b8-5001-7000-8000-000000000001",
+    "entityCode": "48192",
+    "addressText": "حي ريمي - عمارة 14",
+    "status": "ACTIVE"
+  }
   ```
 
-### `POST /v1/worker/collection/weigh`
-تسجيل الوزن الميداني عبر الميزان الذكي.
+### `POST /v1/worker/visits`
+تسجيل أوزان الزيارة الميدانية يدوياً (عضوي، جاف، مرفوض) مع مرجع الميزان.
 * **الترويسة:** `Idempotency-Key: <UUID>`
 * **جسم الطلب:**
   ```json
   {
-    "requestId": "018f25b8-5001-7000-8000-000000000001",
-    "categoryId": "018f25b5-4421-7000-a111-987654321def",
-    "grossWeightKg": 14.250,
-    "tareWeightKg": 0.250,
-    "scaleDeviceId": "BLE-SCALE-MNSR-08",
-    "workerLocation": {
-      "latitude": 12.862415,
-      "longitude": 45.008918
-    }
+    "householdId": "018f25b8-5001-7000-8000-000000000001",
+    "taskId": "018f25bc-9901-7000-8000-111122223333",
+    "organicKg": 8.500,
+    "dryKg": 3.200,
+    "rejectedKg": 0.400,
+    "scaleReference": "SCALE-MNSR-04",
+    "evidenceReference": "proof-visit-10492.jpg"
   }
   ```
 * **الاستجابة الناجحة (201 Created):**
   ```json
   {
-    "weighingId": "018f25c0-1111-7000-8000-222233334444",
-    "netWeightKg": 14.000,
-    "pointsGranted": 210,
-    "anomalyFlag": false,
-    "status": "COMPLETED"
+    "visitId": "018f25c0-1111-7000-8000-222233334444",
+    "pointsEarned": 117,
+    "status": "APPROVED",
+    "message": "تم اعتماد الزيارة وقيد النقاط لحساب الأسرة"
   }
   ```
 
 ### `POST /v1/worker/collection/batch-sync`
-مزامنة وتفريغ الدفعات الميدانية المسجلة أثناء انقطاع الاتصال (Offline Sync).
+مزامنة وتفريغ الدفعات الميدانية المسجلة أثناء انقطاع الاتصال (Field Batch CSV Import).
 * **جسم الطلب:**
   ```json
   {
@@ -196,12 +191,12 @@
     "recordsCount": 15,
     "records": [
       {
-        "requestId": "018f25b8-5001-7000-8000-000000000001",
-        "categoryId": "018f25b5-4421-7000-a111-987654321def",
-        "grossWeightKg": 14.250,
-        "tareWeightKg": 0.250,
-        "scaleDeviceId": "BLE-SCALE-MNSR-08",
-        "offlineRecordedAt": "2026-10-11T03:15:00Z"
+        "householdCode": "48192",
+        "organicKg": 8.500,
+        "dryKg": 3.200,
+        "rejectedKg": 0.400,
+        "scaleReference": "SCALE-MNSR-04",
+        "occurredAtUtc": "2026-10-11T03:15:00Z"
       }
     ]
   }
@@ -211,7 +206,7 @@
   {
     "batchReference": "BATCH-MNSR-20261011-04",
     "status": "QUEUED_FOR_PROCESSING",
-    "message": "تم استلام الدفعة الميدانية وجارٍ معالجتها خلفياً عبر BullMQ"
+    "message": "تم استلام الدفعة الميدانية وجارٍ معالجتها وترحيلها خلفياً عبر BullMQ"
   }
   ```
 
@@ -252,12 +247,12 @@
   }
   ```
 
-### `PATCH /v1/admin/tickets/:id/resolve`
-إغلاق وحل تذكرة دعم عملاء أو نزاع وزني.
+### `PATCH /v1/admin/incidents/:id/resolve`
+إغلاق وحل بلاغ ميداني أو استثناء وزني.
 * **جسم الطلب:**
   ```json
   {
-    "resolutionSummary": "تم اعتماد وزن معدل للمواطن وإيداع فارق 30 نقطة خضراء بتعويض رسمي.",
+    "resolutionSummary": "تمت مراجعة وزن الأسرة واعتماد تعديل وزني بتعويض رسمي 30 نقطة خضراء.",
     "adjustPointsAmount": 30
   }
   ```

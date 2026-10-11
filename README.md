@@ -17,7 +17,7 @@
 [![License](https://img.shields.io/badge/License-Proprietary_/_Gov-blue.svg)](#)
 
 <p align="center">
-  <b>منظومة رقمية متكاملة لتحويل فرز النفايات المنزلية إلى حافز اقتصادي وتنموي ملموس عبر إنترنت الأشياء (IoT)، الحسابات المزدوجة المتوازنة، ومطابقة النطاقات الجغرافية اللحظية.</b>
+  <b>منظومة رقمية متكاملة لتحويل فرز النفايات المنزلية إلى حافز اقتصادي وتنموي ملموس عبر بطاقات التعريف المشفرة، الحسابات المزدوجة المتوازنة، ومطابقة النطاقات الجغرافية اللحظية.</b>
 </p>
 
 </div>
@@ -39,10 +39,10 @@
 
 ## 🌍 نظرة عامة على المشروع (Project Overview)
 
-يعالج مشروع **«أثر»** تحديات تكدس النفايات الصلبة وضعف فرزها من المصدر في مديرية المنصورة (عدن)، من خلال حلقة مغلقة تربط بين:
-1. **المواطنين (Residents):** فرز النفايات من المنازل وطلب الاستلام عبر تطبيق الجوال وكسب «نقاط أثر الخضراء» (Green Points).
-2. **عمال النظافة والأسطول الميداني (Field Fleet):** جمع وفرز الشحنات ووزنها ميدانياً بدقة فائقة باستخدام موازين ذكية مقترنة عبر الـ Bluetooth.
-3. **لوحة التحكم المركزية للبلدية (Back-Office Admin Portal):** غرفة قيادة شاملة لإدارة التوجيه الآلي، وتتبع الأسطول جغرافياً، والرقابة على الأوزان، وإدارة الشكاوى، والتدقيق المالي.
+يعالج مشروع **«أثر»** تحديات تكدس النفايات الصلبة وضياع قيمتها الاقتصادية في مديرية المنصورة (عدن)، من خلال حلقة تشغيلية مغلقة تربط بين:
+1. **المواطنين (Residents):** فرز النفايات عند المصدر في مسارين (عضوي وجاف)، وإبراز بطاقة الـ QR المطبوعة على المنزل، وكسب «نقاط أثر الخضراء» (Green Points).
+2. **عمال النظافة والأسطول الميداني (Field Fleet):** زيارات جمع مجدولة، مسح بطاقة المنزل بكاميرا التطبيق، ووزن الأكياس وتدوين أوزان العضوي والجاف والمرفوض مع كود الميزان يدوياً.
+3. **لوحة التحكم المركزية للبلدية (Back-Office Admin Portal):** غرفة قيادة شاملة لإدارة خطط السير، والرقابة على الأوزان والاستثناءات، وإدارة متجر أثر، والتدقيق المالي.
 4. **متجر أثر الإلكتروني (Two-Step Digital Store):** شراء المنتجات والسلع الداعمة للبيئة بنقاط أثر والريال اليمني عبر نظام الشراء الرقمي بخطوتين (إرفاق إثبات التحويل المالي والتحقق الإداري المباشر).
 
 ---
@@ -54,68 +54,47 @@
 ```mermaid
 flowchart TB
     subgraph Clients ["طبقة العملاء والواجهات (Client Layer)"]
-        ResApp["📱 تطبيق المواطن (Flutter Mobile)"]
-        WorkApp["🚴 تطبيق عامل الجمع (Flutter Mobile)"]
-        StoreWeb["🛍️ بوابة المتجر الإلكتروني (Flutter / Web)"]
-        AdminPortal["🖥️ لوحة تحكم إدارة البلدية (React Vite SPA)"]
+        ResApp["📱 تطبيق المواطن (Flutter Mobile & Web)<br/>استعراض الرصيد ومتجر أثر"]
+        WorkApp["👷 تطبيق العامل الميداني (Flutter Mobile)<br/>مسح بطاقة QR بالكاميرا وتسجيل الأوزان يدوياً"]
+        AdminPortal["🖥️ لوحة تحكم إدارة البلدية (React Vite SPA)<br/>المشرف والعمليات والتدقيق المالي"]
     end
 
-    subgraph Gateway ["طبقة الأمان والموازنة (Ingress & Reverse Proxy)"]
-        Nginx["🛡️ Nginx Reverse Proxy & WAF<br/>(TLS 1.3 Termination | Rate Limiter)"]
+    subgraph Gateway ["طبقة الحماية والـ API (Fastify Gateway)"]
+        Edge["Fastify Modular Monolith (TypeScript)<br/>RBAC + OTP Rate Limiting + Idempotency"]
     end
 
-    subgraph BackendCore ["النواة البرمجية (Fastify Modular Monolith - Node.js 20 LTS)"]
-        AuthMod["🔑 وحدة الهوية والمصادقة (Auth & Sessions)"]
-        DispatchMod["🗺️ وحدة التوجيه والعمليات (Dispatch & Fleet)"]
-        WeighMod["⚖️ وحدة الأوزان والتحقق (Weighing & Verification)"]
-        LedgerMod["💰 وحدة دفتر الأستاذ (Double-Entry Ledger)"]
-        StoreMod["🛍️ وحدة المتجر وإثباتات الدفع (Store & Orders)"]
-        TicketMod["🎫 وحدة خدمة العملاء (Support & CRM)"]
-        AuditMod["📋 وحدة الرقابة والتدقيق (Immutable Audit)"]
+    subgraph Modules ["الوحدات الوظيفية المعتمدة (Domain Modules)"]
+        M1["الهوية والجلسات (Identity & Sessions)"]
+        M2["إدارة الأسر وبطاقات الـ QR (Households & Cards)"]
+        M3["عقدة المنصورة والحدود (Active Node & Scope)"]
+        M4["طلبات الخدمة والمهام (Service Requests & Dispatch)"]
+        M5["الزيارات والأوزان (Visits: Organic / Dry / Rejected)"]
+        M6["دفتر الأستاذ المزدوج (Green Points Ledger)"]
+        M7["شركاء الاسترداد ومبيعات الجملة (Resource Partners)"]
+        M8["متجر أثر والتحقق المالي (Athar Store & Payment Review)"]
+        M9["البلاغات والرقابة والتدقيق (Incidents & Audit Log)"]
     end
 
-    subgraph AsyncProcessing ["طبقة المعالجة الخلفية غير المتزامنة (Async & Background Workers)"]
-        WorkerQueue["⚙️ معالج المهام الخلفية والإشعارات (BullMQ Background Workers)"]
-        AnalyticsWorker["📊 مشغل التقارير والورديات (Cron Analytics)"]
+    subgraph Workers ["معالجات الطوابير الخلفية (BullMQ / Redis)"]
+        W1["إخطارات مهلة الـ 10 دقائق للإسناد (Dispatch Timeout SMS)"]
+        W2["إشعار المواطن برصيد النقاط (Points Minted Notification)"]
+        W3["معالجة دفعات نهاية اليوم (Field Batch CSV Import)"]
     end
 
-    subgraph DataStorage ["طبقة البيانات والتخزين (Data & Cache Layer)"]
-        Postgres[("🐘 PostgreSQL 16 + PostGIS 3.4<br/>(Spatial Data & Financial ACID)")]
-        RedisDB[("⚡ Redis 7 Alpine<br/>(Sessions, Locks & BullMQ Queues)")]
+    subgraph DataStore ["قواعد البيانات والتخزين (Persistence Layer)"]
+        DB[("🐘 PostgreSQL 16 + PostGIS<br/>25 جدولاً معتمداً")]
+        REDIS[("⚡ Redis 7<br/>طوابير BullMQ والتخزين المؤقت")]
+        S3[("📦 S3 / MinIO Storage<br/>إيصالات التحويل البنكي وصور الأدلة")]
     end
 
-    subgraph ExternalGateways ["الخدمات الخارجية (External Integrations)"]
-        SMS["✉️ Yemen SMS Gateway (OTP)"]
-        FCM["🔔 Firebase Cloud Messaging (Push Notifications)"]
-        BLE["📶 Bluetooth Smart Scales (IoT Devices)"]
-    end
-
-    %% اتصالات الواجهات
-    ResApp -->|HTTPS / REST| Nginx
-    WorkApp -->|HTTPS / REST| Nginx
-    StoreWeb -->|HTTPS / REST| Nginx
-    AdminPortal -->|HTTPS / WSS| Nginx
-    WorkApp -.->|BLE Pairing| BLE
-
-    %% التوجيه للخدمات
-    Nginx --> AuthMod
-    Nginx --> DispatchMod
-    Nginx --> WeighMod
-    Nginx --> LedgerMod
-    Nginx --> StoreMod
-    Nginx --> TicketMod
-    Nginx --> AuditMod
-
-    %% اتصالات البيانات
-    BackendCore -->|Prisma / Kysely Queries| Postgres
-    BackendCore -->|Distributed Locks & Caching| RedisDB
-
-    %% معالجة المهام الخلفية
-    BackendCore -->|Job Enqueue| RedisDB
-    WorkerQueue -->|Consume Queue| RedisDB
-    WorkerQueue --> Postgres
-    WorkerQueue --> SMS
-    WorkerQueue --> FCM
+    Clients --> Edge
+    Edge --> Modules
+    Modules --> DB
+    Modules --> REDIS
+    Modules --> S3
+    Modules -.-> |إدراج المهام| REDIS
+    Workers <--> REDIS
+    Workers <--> DB
 ```
 
 > **الأساس المنطقي المعماري:**
@@ -125,210 +104,169 @@ flowchart TB
 
 ## 🗄️ مخطط العلاقات وقاعدة البيانات (Entity Relationship Diagram - ERD)
 
-يوضح المخطط الكيانات المحورية، المفاتيح الأساسية والأجنبية، وضوابط القيد المزدوج:
+يوضح المخطط الكيانات المحورية المعتمدة في النظام، الروابط بينها، وضوابط القيد المزدوج:
 
 ```mermaid
 erDiagram
-    users ||--o{ auth_sessions : "يمتلك جلسات"
-    users ||--o| admin_staff_profiles : "يمتلك ملف موظف"
-    users ||--o{ household_addresses : "يسجل عناوين"
-    users ||--o| ledger_accounts : "يمتلك حساب نقاط"
-    users ||--o{ service_requests : "يرفع طلبات"
-    users ||--o{ worker_tasks : "يُكلف بمهام"
-    users ||--o{ store_orders : "يرفع طلبات شراء"
-    users ||--o{ support_tickets : "يفتح بلاغات"
-
-    geofence_zones ||--o{ household_addresses : "يحتوي منازل"
-    geofence_zones ||--o{ service_requests : "يحدد نطاق الطلب"
-
-    waste_categories ||--o{ collection_weighings : "يحدد تسعيرة النقاط"
-
-    service_requests ||--o| worker_tasks : "يولد مهمة ميدانية"
-    service_requests ||--o{ collection_weighings : "يسجل أوزان"
-    service_requests ||--o{ support_tickets : "يرتبط بشكوى"
-
-    store_products ||--o{ store_orders : "يُطلب في"
-
-    ledger_accounts ||--o{ green_points_ledger : "حساب دائن (Source)"
-    ledger_accounts ||--o{ green_points_ledger : "حساب مدين (Destination)"
-
-    users {
-        uuid id PK
-        varchar phone_bindex UK "فهرس أعمى مشفر"
-        text encrypted_phone "رقم الهاتف مشفر AES"
-        varchar full_name
-        varchar role "RESIDENT | WORKER | ADMIN"
-        varchar status "ACTIVE | SUSPENDED"
-    }
-
-    geofence_zones {
-        uuid id PK
-        varchar code UK "MANSOURA-BLK-04"
-        geometry boundary "Polygon SRID 4326"
-        varchar status "ACTIVE"
-    }
-
-    service_requests {
-        uuid id PK
-        varchar tracking_number UK
-        uuid resident_id FK
-        uuid zone_id FK
-        varchar status "SUBMITTED | WEIGHED | COMPLETED"
-        varchar idempotency_key UK
-    }
-
-    collection_weighings {
-        uuid id PK
-        uuid request_id FK
-        uuid category_id FK
-        decimal gross_weight_kg
-        decimal tare_weight_kg
-        decimal net_weight_kg "محسوب آلياً"
-        boolean anomaly_flag "مؤشر الشذوذ والاحتيال"
-    }
-
-    store_products {
-        uuid id PK
-        varchar sku UK
-        varchar title
-        decimal price_yer
-        int points_price "سعر النقاط الاختياري"
-        int stock_qty "الكمية المتاحة"
-        boolean is_available
-    }
-
-    store_orders {
-        uuid id PK
-        varchar order_number UK
-        uuid buyer_id FK
-        uuid product_id FK
-        int points_spent
-        decimal amount_yer
-        varchar payment_method "BANK_TRANSFER | CASH"
-        varchar transfer_reference
-        text proof_image_url "صورة إيصال التحويل"
-        varchar status "PENDING_VERIFICATION | VERIFIED_PAID | FULFILLED | REJECTED"
-        uuid verified_by_staff_id FK
-    }
-
-    ledger_accounts {
-        uuid id PK
-        uuid user_id FK
-        varchar account_type "SYSTEM_MINT | HOUSEHOLD | SYSTEM_BURN"
-        bigint balance "الرصيد الدقيق"
-    }
-
-    green_points_ledger {
-        uuid id PK
-        uuid transaction_ref
-        uuid source_account_id FK
-        uuid dest_account_id FK
-        bigint amount "القيد المتوازن"
-        varchar operation_type "MINT_WEIGHT | REDEEM_ORDER | REVERSAL"
-        varchar idempotency_key UK
-    }
+    USER_ACCOUNT ||--o{ HOUSEHOLD : "يمتلك / يدير"
+    USER_ACCOUNT ||--o{ WORKER_TASK_DISPATCH : "يكلف كعامل"
+    USER_ACCOUNT ||--o{ STORE_ORDER : "يشتري كزبون"
+    
+    HOUSEHOLD ||--o{ HOUSEHOLD_QR_TOKEN : "يحمل بطاقات رمز"
+    HOUSEHOLD ||--o{ INTAKE_SURVEY : "يوثق استبيان الضم"
+    HOUSEHOLD ||--o{ SERVICE_REQUEST : "يطلب خدمة جمع"
+    HOUSEHOLD ||--o{ COLLECTION_VISIT : "يستقبل زيارات جمع"
+    
+    ACTIVE_NODE ||--o{ SERVICE_REQUEST : "يغطي جغرافياً"
+    ACTIVE_NODE ||--o{ REJECTED_SERVICE_ATTEMPT : "يسجل خارج النطاق"
+    ACTIVE_NODE ||--o{ DEMAND_WAITLIST : "قائمة رغبات التوسع"
+    
+    SERVICE_REQUEST ||--o| WORKER_TASK_DISPATCH : "يسند بمهمة"
+    WORKER_TASK_DISPATCH ||--o{ COLLECTION_VISIT : "ينفذ ميدانياً"
+    
+    COLLECTION_VISIT ||--|{ COLLECTION_ITEM : "يتضمن أوزان الفرز"
+    COLLECTION_VISIT ||--o| GREEN_POINTS_LEDGER : "ينشئ قيد نقاط معتمد"
+    
+    WORKER_TASK_DISPATCH ||--o{ FIELD_BATCH_IMPORT : "يرحل عبر دفعة"
+    FIELD_BATCH_IMPORT ||--o{ FIELD_BATCH_ROW_ERROR : "يسجل أخطاء الصفوف"
+    
+    RESOURCE_PARTNER ||--o{ PARTNER_DELIVERY : "يستلم مواد مفروزة"
+    MATERIAL_PRICE ||--o{ PARTNER_DELIVERY : "يسعر المواد"
+    PARTNER_DELIVERY ||--o{ PARTNER_PAYMENT : "يسدد قيمتها مالياً"
+    
+    STORE_PRODUCT ||--o{ STORE_ORDER : "يباع كسلعة"
+    
+    USER_ACCOUNT ||--o{ INCIDENT_REPORT : "يبلغ عن حادث"
+    USER_ACCOUNT ||--o{ CANDIDATE_APPLICATION : "يقدم للتوظيف"
+    USER_ACCOUNT ||--o{ VOLUNTEER_INTEREST : "يسجل للتطوع"
+    USER_ACCOUNT ||--o{ AUDIT_LOG : "يوثق كفاعل"
 ```
 
 > **الأساس المنطقي لقاعدة البيانات:**
-> الاعتماد الكامل على `UUIDv7` للترتيب الزمني وتفادي تجزئة الفهارس، مع تطبيق امتداد `PostGIS` لفهرسة النطاقات الجغرافية مكانياً عبر مؤشرات `GiST`، وفصل حسابات النقاط في دفتر أستاذ متوازن غير قابل للتعديل (`Append-Only`).
+> الاعتماد على نموذج موحد مكون من 25 كياناً معتمداً، مع عزل حسابات النقاط في دفتر أستاذ متوازن غير قابل للتعديل (`Append-Only`) لمنع تضخم النقاط من العدم، وحفظ الحسابات الجغرافية وتطابق العقد ضمن إطار تشغيلي منضبط.
 
 ---
 
 ## ⏱️ مخطط التتابع الزمني للمصادقة والجمع الميداني (Sequence Flow)
 
-يوثق هذا المخطط التفاعل التبادلي أثناء تسجيل الوزن الميداني وصرف النقاط للمواطن:
+يوثق هذا المخطط التفاعل التبادلي أثناء مسح بطاقة الـ QR، تسجيل الأوزان يدوياً، وصرف النقاط للمواطن:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Resident as المواطن
-    actor Worker as عامل النظافة
-    participant Scale as الميزان الذكي (BLE)
-    participant WApp as تطبيق العامل
+    actor Worker as العامل الميداني
+    actor Supervisor as المشرف الميداني
+    participant WApp as تطبيق العامل (Flutter)
     participant API as خادم Fastify API
-    participant DB as قاعدة بيانات PostgreSQL
-    participant WorkerJob as معالج المهام (BullMQ)
-    participant Push as إشعارات الهاتف (FCM)
+    participant DB as قاعدة البيانات (PostgreSQL)
+    participant Queue as طوابير BullMQ (Redis)
+    participant SMS as مزود الرسائل (SMS Gateway)
 
-    Worker->>Scale: وزن النفايات عبر البلوتوث
-    Scale-->>WApp: قراءة الوزن الصافي المعتمد (12.500 kg)
-    Worker->>WApp: إرسال الوزن مع كود الطلب
-    WApp->>API: POST /v1/worker/collection/weigh { requestId, netWeight, scaleId }
-    
+    Note over Worker,WApp: 1. الوصول للعنوان ومسح بطاقة الأسرة
+    Worker->>WApp: فتح كاميرا التطبيق لمسح بطاقة الـ QR المطبوعة على المنزل
+    WApp->>API: POST /qr/resolve { qrCode: "MN-48192", taskId }
+    API->>DB: فحص البطاقة والمهمة وتطابق العقدة
+    DB-->>API: معرّف الأسرة الصالح (Household_ID)
+    API-->>WApp: 200 OK (بيانات الأسرة المختصرة بلا خصوصيات)
+
+    Note over Worker,WApp: 2. وزن النفايات وإدخال الأرقام يدوياً
+    Worker->>Worker: وزن أكياس العضوي والجاف بالميزان العادي
+    Worker->>WApp: إدخال الأوزان يدوياً: عضوي 8.5 كجم، جاف 3.2 كجم، مرفوض 0.4 كجم
+    Worker->>WApp: إدخال كود الميزان (SCALE-04) وصورة الدليل إن وجدت
+    WApp->>API: POST /visits { householdId, organicKg, dryKg, rejectedKg, scaleRef }
+
     activate API
-    API->>API: التحقق من مفتاح عدم التكرار (Idempotency-Key)
-    API->>API: فحص خوارزمية كشف الشذوذ (Anti-Fraud Check)
-    
-    API->>DB: BEGIN TRANSACTION (معاملة مصرفية آمنة)
-    API->>DB: حفظ سجل الوزن في collection_weighings
-    API->>DB: تحديث حالة الطلب إلى WEIGHED
-    API->>DB: حساب النقاط: 12.5 كجم × 15 نقطة = 187 GP
-    API->>DB: قيد محاسبي مزدوج متوازن في green_points_ledger
-    API->>DB: COMMIT TRANSACTION
-    
-    API->>WorkerJob: إرسال مهمة الإشعار إلى طابور المعالجة
+    API->>API: فحص الشذوذ الوزني مقارنة بالسقف المحدد
+    alt رصد قفزة غير طبيعية أو وزن مشبوه
+        API->>DB: حفظ الزيارة بحالة UNDER_REVIEW (تعليق النقاط)
+        API-->>WApp: 201 Created { status: "UNDER_REVIEW", message: "بانتظار مراجعة المشرف" }
+        Supervisor->>API: POST /visits/:id/approve (اعتماد المشرف بعد التحقق)
+    else الأوزان طبيعية وضمن الحدود
+        API->>DB: حفظ الزيارة بحالة APPROVED
+    end
+
+    Note over API,DB: قيد النقاط: عضوي + جاف فقط (المرفوض 0 نقطة)
+    API->>DB: إدراج قيد دائن ومدين في green_points_ledger
+    API->>Queue: إضافة مهمة إشعار المواطن بالرصيد المكتسب
+    API-->>WApp: 201 Created { status: "APPROVED", pointsEarned: 117 }
     deactivate API
-    
-    API-->>WApp: 201 Created { status: "COMPLETED", pointsEarned: 187 }
-    
-    WorkerJob->>Push: إرسال إشعار فوري لهاتف المواطن
-    Push-->>Resident: إشعار: تم إيداع 187 نقطة خضراء لحسابك بنجاح! 🌿
+
+    Queue->>SMS: إرسال رسالة SMS للمواطن بالنقاط المعتمدة
 ```
 
 ---
 
-## 🔄 مخطط آلة الحالة لدورة حياة الطلب (State Machine Diagram)
+## 🔄 مخطط آلة الحالة لدورات حياة الكيانات (State Machine Diagram)
 
-دورة حياة طلب الخدمة المنزلي (`service_requests`) محكومة بآلة حالة محددة تمنع أي انتقال غير مصرح به:
+دورات حياة الكيانات التشغيلية محكومة بآلات حالة محددة تمنع أي انتقال غير مصرح به:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> SUBMITTED: إنشاء الطلب من تطبيق المواطن
-    
-    SUBMITTED --> DISPATCHED: توجيه الطلب إلى عامل أو دراجة جمع
-    SUBMITTED --> REJECTED: رفض الطلب (خارج النطاق الجغرافي)
-    SUBMITTED --> CANCELLED: إلغاء الطلب من قِبل المواطن
-    
-    DISPATCHED --> IN_PROGRESS: استلام العامل للمهمة والتحرك للموقع
-    DISPATCHED --> CANCELLED: إلغاء من الإدارة لظرف طارئ
-    
-    IN_PROGRESS --> WEIGHED: إتمام عملية الوزن بالميزان الذكي
-    IN_PROGRESS --> FAILED: تعذر الوصول للعنوان أو عدم الرد
-    
-    WEIGHED --> COMPLETED: مطابقة الأوزان وصرف النقاط بنجاح
-    WEIGHED --> DISPUTED: اعتراض المواطن أو رصد شذوذ وزني آلي
-    
-    DISPUTED --> COMPLETED: تسوية النزاع واعتماد وزن معدل من المشرف
-    DISPUTED --> REJECTED: إلغاء الوزن بالكامل وإغلاق الطلب
-    
-    FAILED --> SUBMITTED: إعادة الجدولة لوردية قادمة
-    
-    COMPLETED --> [*]
-    REJECTED --> [*]
-    CANCELLED --> [*]
+    direction LR
+
+    state "دورة حياة طلب الخدمة (ServiceRequest)" as SR {
+        [*] --> NEW: تقديم الطلب
+        NEW --> PLANNED: جدولة المسار
+        PLANNED --> ASSIGNED: تكليف العامل
+        ASSIGNED --> IN_PROGRESS: بدء الزيارة
+        IN_PROGRESS --> COMPLETED: إتمام الجمع
+        IN_PROGRESS --> CANCELLED: تعذر الوصول
+        COMPLETED --> [*]
+        CANCELLED --> [*]
+    }
+
+    state "دورة حياة زيارة الجمع (CollectionVisit)" as CV {
+        [*] --> RECORDED: تدوين الأوزان يدوياً
+        RECORDED --> APPROVED: أوزان مطابقة
+        RECORDED --> UNDER_REVIEW: رصد شذوذ وزني
+        UNDER_REVIEW --> APPROVED: اعتماد المشرف
+        UNDER_REVIEW --> REJECTED: رفض المشرف
+        APPROVED --> [*]: قيد النقاط في الدفتر
+        REJECTED --> [*]: لا نقاط للمرفوض
+    }
+
+    state "دورة حياة طلب المتجر (StoreOrder)" as SO {
+        [*] --> PENDING_VERIFICATION: حجز السلعة ورفع إيصال الحوالة
+        PENDING_VERIFICATION --> VERIFIED_PAID: اعتماد السند من الإدارة المالية
+        PENDING_VERIFICATION --> REJECTED: رفض السند المالي
+        VERIFIED_PAID --> PROCESSING: تجهيز الشحنة بالمستودع
+        PROCESSING --> RELEASED: صرف الطلب
+        RELEASED --> DELIVERED: تسليم السلعة للمواطن
+        REJECTED --> [*]: إلغاء وتحرير الحجز
+        DELIVERED --> [*]
+    }
 ```
 
 ---
 
-## ⚡ مخطط التدفق لمنطق كشف الشذوذ والأوزان (Business Logic Flowchart)
+## ⚡ مخطط التدفق لمنطق فرز المسارين واعتماد الأوزان (Business Logic Flowchart)
 
-تمثيل خوارزمية مكافحة الاحتيال وفحص الأوزان الميدانية قبل الصرف المالي للنقاط:
+تمثيل خوارزمية فرز المسارين (عضوي وجاف) وفحص الأوزان الميدانية قبل الصرف المالي للنقاط:
 
 ```mermaid
 flowchart TD
-    WeightInput(["قراءة الميزان الميداني: Net Weight (kg)"]) --> CheckZero{"هل الوزن الصافي > 0 ؟"}
+    Start(["بدء زيارة الجمع الميداني"]) --> ScanQR["مسح رمز البطاقة (QR Card) بكاميرا هاتف العامل"]
+    ScanQR --> ResolveCode{"التحقق من كود الأسرة (5-6 خانات)"}
     
-    CheckZero -- "لا (وزن غير صالح)" --> RejectZero(["رفض العملية: 422 Invalid Weight"])
-    CheckZero -- "نعم" --> CheckAbsolute{"هل الوزن يتجاوز سقف الخامة الأقصى؟<br/>(مثال: بلاستيك > 50 كجم للمنزل)"}
-    
-    CheckAbsolute -- "نعم (تجاوز السقف)" --> FlagAnomaly["رصد شذوذ قطعي: Anomaly_Flag = TRUE"]
-    CheckAbsolute -- "لا" --> CheckHouseholdBaseline{"هل الوزن > (المتوسط التاريخي للأسرة × 3.5)؟"}
-    
-    CheckHouseholdBaseline -- "نعم (قفزة شاذة)" --> FlagAnomaly
-    CheckHouseholdBaseline -- "لا" --> Approve["اعتماد الوزن: Anomaly_Flag = FALSE"]
-    
-    FlagAnomaly --> HoldState["تجميد رصيد النقاط وتحويل الطلب للمشرف الرقابي"]
-    Approve --> MintLedger["صرف النقاط فوراً في دفتر الأستاذ (Double-Entry Mint)"]
+    ResolveCode -- "كود غير صالح أو ملغي" --> HaltScan(["إيقاف العملية وإبلاغ المشرف"])
+    ResolveCode -- "كود صالح ومطابق" --> ReadScale["وزن الأكياس بالميزان الميداني وتدوين المرجع"]
+
+    ReadScale --> InputWeights["إدخال الأوزان يدوياً في التطبيق:<br/>- وزن العضوي (Organic Kg)<br/>- وزن الجاف (Dry Kg)<br/>- وزن المرفوض (Rejected Kg)"]
+
+    InputWeights --> CheckLimits{"فحص الشذوذ الوزني:<br/>هل الأوزان ضمن سقف الاستهلاك المعتمد؟"}
+
+    CheckLimits -- "تجاوز السقف أو قفزة شاذة" --> FlagReview["حفظ الزيارة بحالة: UNDER_REVIEW<br/>إشعار المشرف الميداني للتحقق خلال 24 ساعة"]
+    CheckLimits -- "سليم وضمن الحدود" --> AutoApprove["حفظ الزيارة بحالة: APPROVED"]
+
+    FlagReview --> SupervisorAction{"قرار المشرف الميداني"}
+    SupervisorAction -- "رفض الزيارة" --> RejectVisit(["إلغاء الزيارة: REJECTED (بلا نقاط)"])
+    SupervisorAction -- "اعتماد أو تعديل" --> AutoApprove
+
+    AutoApprove --> CalcPoints["احتساب النقاط الخضراء:<br/>Points = (Organic × Rate₁) + (Dry × Rate₂)<br/>(المرفوض: صفر نقطة)"]
+
+    CalcPoints --> LedgerEntry["تسجيل قيد متوازن في دفتر الأستاذ (GreenPointsLedger)"]
+    LedgerEntry --> EnqueueSMS["جدولة إرسال رسالة SMS للمواطن عبر طابور BullMQ"]
+    EnqueueSMS --> EndSuccess(["اكتمال العملية بنجاح"])
 ```
 
 ---
@@ -344,7 +282,7 @@ flowchart TD
 | 🗃️ [مخطط العلاقات والكيانات (ERD)](docs/02-database/erd.md) | بنية قاعدة البيانات الكاملة | تفصيل الجداول وسياقات النطاقات ودورة الشراء بخطوتين وفهارس PostGIS المكانية. |
 | 📖 [قاموس بيانات قاعدة البيانات](docs/02-database/data-dictionary.md) | معجم الجداول والحقول | أنواع الحقول، القيود، الشروط، والقيم الافتراضية لكل جدول. |
 | ⏱️ [مخططات التتابع الزمني للعمليات](docs/03-flows-and-logic/sequences.md) | تسلسل تدفق البيانات | تسجيل الدخول بالـ OTP، الجمع الميداني، ودورة الشراء الرقمي بخطوتين. |
-| 🔄 [آلات الحالة المحددة (FSM)](docs/03-flows-and-logic/state-machines.md) | دورات حياة الكيانات | مصفوفات الانتقال، حالات طلبات الخدمة، المهام، التذاكر، وطلبات المتجر. |
+| 🔄 [آلات الحالة المحددة (FSM)](docs/03-flows-and-logic/state-machines.md) | دورات حياة الكيانات | مصفوفات الانتقال، دورة حياة طلب الخدمة، المهام الميدانية، البلاغات، وطلبات المتجر. |
 | 🧠 [منطق الأعمال والخوارزميات](docs/03-flows-and-logic/business-logic.md) | الخوارزميات الحسابية | فحص PostGIS `ST_Covers`، كشف الشذوذ، ومفاتيح منع التكرار. |
 | 🔌 [مواصفات وعقود الـ APIs](docs/04-specifications/api-contracts.md) | مواصفات الـ REST Endpoints | عقود الـ Mobile والـ Worker والـ Admin وصيغ أخطاء RFC 7807. |
 | 🛡️ [الأمان والامتثال والتحكم بالوصول](docs/04-specifications/security-and-compliance.md) | النموذج الأمني والتشفير | تحليل STRIDE، تشفير AES-256، الفهرسة العمياء، والمصادقة الثنائية. |

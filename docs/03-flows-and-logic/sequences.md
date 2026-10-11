@@ -58,58 +58,62 @@ sequenceDiagram
 
 ---
 
-## 2. دورة حياة الجمع الميداني، الوزن الذكي، وضبط الرصيد (Smart Field Collection & Weighing Flow)
+## 2. دورة حياة مسح رمز البطاقة، الجمع الميداني، وقيد النقاط (Field Collection & QR Card Flow)
 
-توثق هذه العملية كيفية إتمام استلام النفايات من قبل عامل النظافة الميداني، والاتصال بالميزان الذكي عبر Bluetooth، والتحقق التلقائي من الشذوذ، وتسجيل النقاط بالقيد المزدوج المضمون.
+توثق هذه العملية كيفية إتمام استلام النفايات من قبل عامل النظافة الميداني، ومسح بطاقة الـ QR المطبوعة على المنزل بكاميرا التطبيق، وتسجيل أوزان المسارين (عضوي وجاف) والمرفوض يدوياً مع مرجع الميزان، وتسجيل النقاط بالقيد المزدوج المضمون.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Resident as المواطن
+    actor Resident as المواطن (رب الأسرة)
     actor Worker as عامل التجميع الميداني
-    participant Scale as الميزان الذكي (BLE Scale)
+    actor Supervisor as المشرف الميداني
     participant WApp as تطبيق العامل (Worker App)
     participant API as خادم Fastify API
     participant DB as قاعدة البيانات (PostgreSQL)
-    participant Queue as طابور المعالجة (Redis / BullMQ)
-    participant WorkerQueue as عمال المعالجة (BullMQ Worker)
-    participant Push as خدمة الإشعارات (Firebase FCM)
+    participant Queue as طوابير BullMQ (Redis)
+    participant SMS as مزود الرسائل (SMS Gateway)
 
-    Worker->>WApp: تأكيد الوصول لموقع المنزل (At Location)
-    WApp->>API: PATCH /v1/tasks/:id/arrive { coordinates }
-    API->>DB: تحديث حالة المهمة إلى AT_LOCATION
-    
-    Worker->>Scale: تشغيل وقراءة الميزان الرقمي عبر Bluetooth
-    Scale-->>WApp: إرسال الوزن الإجمالي عبر بروتوكول BLE (Gross: 14.250 kg)
-    
-    Worker->>WApp: اختيار الخامة (بلاستيك PET) وتأكيد الوزن الصافي
-    WApp->>API: POST /v1/collection/weigh { requestId, categoryId, gross, tare, scaleId }
+    Note over Worker,WApp: 1. مسح بطاقة رمز الأسرة (QR Card)
+    Worker->>WApp: فتح كاميرا التطبيق ومسح رمز البطاقة الفيزيائية المطبوعة على المنزل
+    WApp->>API: POST /qr/resolve { qrCode: "MN-48192", taskId }
     
     activate API
-    API->>API: حساب صافي الوزن: Net = 14.250 - 0.250 = 14.000 kg
-    API->>API: خوارزمية كشف الشذوذ (فحص السقف اليومي والوزن المفرط)
+    API->>DB: مطابقة رمز البطاقة المشفر (HouseholdQrToken) مع المهمة النشطة
+    DB-->>API: معرّف الأسرة الصالح (Household ID)
+    API-->>WApp: 200 OK { entityCode: "48192", address: "حي ريمي - عمارة 14" }
+    deactivate API
+
+    Note over Worker,WApp: 2. وزن المواد وتدوين الأرقام يدوياً
+    Worker->>Worker: وزن أكياس العضوي والجاف بالميزان الميداني
+    Worker->>WApp: إدخال الأوزان يدوياً: عضوي 8.5 كجم، جاف 3.2 كجم، مرفوض 0.4 كجم
+    Worker->>WApp: إدخال مرجع الميزان (SCALE-04) وصورة الإثبات (اختياري)
+    WApp->>API: POST /visits { householdId, organicKg, dryKg, rejectedKg, scaleReference }
     
-    alt رصد وزن شاذ أو مريب (> 50 كجم للمنزل الواحد)
-        API->>DB: تسجيل الوزن مع تفعيل anomaly_flag = TRUE
-        API->>DB: إنشاء تنبيه رقابي لمدير العمليات في لوحة التحكم
-    else الوزن سليم ومطابق
+    activate API
+    API->>API: فحص الشذوذ الوزني مقارنة بسقف الاستهلاك والمتوسط التاريخي
+    
+    alt رصد وزن شاذ أو مريب (> السقف الأقصى المعتمد)
+        API->>DB: تسجيل الزيارة بحالة UNDER_REVIEW (تعليق النقاط)
+        API->>DB: إنشاء تنبيه مراجعة للمشرف في لوحة العمليات
+        API-->>WApp: 201 Created { status: "UNDER_REVIEW", message: "الزيارة بانتظار مراجعة المشرف" }
+        Supervisor->>API: POST /visits/:id/approve (اعتماد المشرف بعد التحقق)
+    else الأوزان طبيعية ومطابقة
         API->>DB: BEGIN TRANSACTION (بدء معاملة بنكية صارمة)
-        API->>DB: حفظ سجل collection_weighings
-        API->>DB: تحديث حالة service_requests إلى WEIGHED
-        API->>DB: حساب النقاط المكتسبة: 14 كجم × 15 نقطة = 210 GP
+        API->>DB: حفظ سجل collection_visits و collection_items
+        API->>DB: تحديث حالة service_requests إلى COMPLETED
+        API->>DB: حساب النقاط: (8.5 × معدل العضوي) + (3.2 × معدل الجاف) — المرفوض 0 نقطة
         API->>DB: قيد محاسبي مزدوج: من SYSTEM_MINT إلى HOUSEHOLD_ACCOUNT
         API->>DB: COMMIT TRANSACTION (حفظ تام لا رجعة فيه)
         
-        API->>Queue: إضافة مهمة إشعار إلى BullMQ: addJob('send-notification', { userId, points: 210 })
+        API->>Queue: إضافة مهمة إشعار إلى BullMQ: addJob('send-points-sms', { phone, points })
+        API-->>WApp: 201 Created { status: "APPROVED", pointsEarned: 117 }
     end
     deactivate API
     
-    API-->>WApp: 201 Created { netWeight: 14.0, pointsEarned: 210, status: "SUCCESS" }
-    
-    Note over Queue,WorkerQueue: معالجة الإشعارات خلفياً عبر طوابير BullMQ
-    WorkerQueue->>Queue: سحب المهمة المستحقة (Process Job)
-    WorkerQueue->>Push: إرسال إشعار فوري للمواطن (تم إيداع 210 نقطة خضراء لحسابك!)
-    Push-->>Resident: ظهور الإشعار على هاتف المواطن مع رنين صوتي
+    Note over Queue,SMS: إرسال الإشعار للمواطن عبر طابور BullMQ
+    Queue->>SMS: إرسال رسالة SMS للمواطن: "تم اعتماد 117 نقطة خضراء لحسابك!"
+    SMS-->>Resident: وصول الرسالة النصية فورياً
 ```
 
 ---

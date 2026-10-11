@@ -37,31 +37,30 @@ LIMIT 1;
 
 ---
 
-## 2. محرك كشف الشذوذ ومكافحة الاحتيال في الأوزان (Anti-Fraud Weight Engine)
+## 2. محرك فحص الأوزان وكشف الشذوذ (Weight Verification & Anomaly Engine)
 
-تمنع هذه الخوارزمية محاولات التلاعب بالموازين، مثل وضع أحجار أو معادن ثقيلة داخل أكياس البلاستيك، أو تسجيل أوزان وهمية من قِبل العمال لزيادة النقاط بشكل غير مشروع.
+تضمن هذه الخوارزمية انضباط الأوزان المدونة لمساري الفرز (عضوي وجاف) والمرفوض، ومنع تسجيل أوزان غير معقولة تتجاوز السقف الاستهلاكي للأسرة.
 
 ```mermaid
 flowchart TD
-    WeightIn(["استقبال قراءة الميزان: Gross, Tare, Category_ID"]) --> CalcNet["حساب الوزن الصافي:<br/>Net = Gross - Tare"]
+    WeightIn(["تدوين أوزان الزيارة: عضوي، جاف، مرفوض، ومرجع الميزان"]) --> CheckNegative{"هل أوزان العضوي والجاف >= 0 والوزن الإجمالي > 0 ؟"}
     
-    CalcNet --> CheckNegative{"هل Net > 0 ؟"}
-    CheckNegative -- "لا" --> ErrZero(["رفض العملية: وزن غير صالح (0 أو سالب)"])
+    CheckNegative -- "لا" --> ErrZero(["رفض العملية: أوزان غير صالحة"])
     
-    CheckNegative -- "نعم" --> FetchLimits["جلب حدود المادة ومتوسط السجل التاريخي للأسرة"]
-    FetchLimits --> CheckAbsoluteMax{"هل Net > max_threshold_kg ؟<br/>(مثال: البلاستيك > 50 كجم للمنزل)"}
+    CheckNegative -- "نعم" --> FetchLimits["جلب سقف الوزن المعتمد للأسرة والمتوسط التاريخي"]
+    FetchLimits --> CheckAbsoluteMax{"هل إجمالي الوزن > السقف الأقصى للزيارة؟<br/>(مثال: > 40 كجم للأسرة الواحدة)"}
     
-    CheckAbsoluteMax -- "نعم (تجاوز السقف الأقصى)" --> FlagAnomaly1["رصد شذوذ قطعي:<br/>تفعيل Anomaly_Flag = TRUE<br/>السبب: EXCEEDED_CATEGORY_MAX_THRESHOLD"]
+    CheckAbsoluteMax -- "نعم (تجاوز السقف)" --> FlagAnomaly1["رصد شذوذ قطعي:<br/>حفظ الزيارة بحالة UNDER_REVIEW<br/>السبب: EXCEEDED_MAX_THRESHOLD"]
     
-    CheckAbsoluteMax -- "لا" --> CheckSpike{"هل Net > (متوسط الأسرة × 3.5) ؟<br/>(قفزة غير مبررة مقارنة بالمتوسط)"}
-    CheckSpike -- "نعم (قفزة شاذة)" --> FlagAnomaly2["رصد شذوذ إحصائي:<br/>تفعيل Anomaly_Flag = TRUE<br/>السبب: STATISTICAL_WEIGHT_SPIKE"]
+    CheckAbsoluteMax -- "لا" --> CheckSpike{"هل الوزن > (متوسط الأسرة × 3.5) ؟<br/>(قفزة غير مبررة مقارنة بالمتوسط)"}
+    CheckSpike -- "نعم (قفزة شاذة)" --> FlagAnomaly2["رصد شذوذ إحصائي:<br/>حفظ الزيارة بحالة UNDER_REVIEW<br/>السبب: STATISTICAL_WEIGHT_SPIKE"]
     
-    CheckSpike -- "لا" --> ApproveWeight["اعتماد الوزن رسمياً:<br/>Anomaly_Flag = FALSE"]
+    CheckSpike -- "لا" --> ApproveWeight["اعتماد الزيارة مباشرة:<br/>حالة الزيارة = APPROVED"]
     
-    FlagAnomaly1 --> HoldPoints["تجميد رصيد النقاط وتحويل المعاملة للتحقيق الرقابي"]
+    FlagAnomaly1 --> HoldPoints["تعليق صرف النقاط وإحالة الزيارة للمشرف الميداني للتحقق خلال 24 ساعة"]
     FlagAnomaly2 --> HoldPoints
     
-    ApproveWeight --> MintPoints["احتساب وصرف النقاط الخضراء فورياً في دفتر الأستاذ"]
+    ApproveWeight --> MintPoints["احتساب وصرف النقاط لمساري العضوي والجاف فقط (المرفوض 0 نقطة)"]
 ```
 
 ---
@@ -99,9 +98,10 @@ flowchart TD
 
 لا يتم إنشاء أي نقطة خضراء (`Green Point`) في النظام دون قيد متوازن دائن ومدين؛ مما يمنع رياضياً أي اختلال في ميزان المدفوعات.
 
-### 4.1 معادلة الإنشاء الأولي (Recycling Minting):
-عند تسليم $W$ كيلوغرام من مادة ذات معامل نقاط $R$:
-$$\Delta P = \lfloor W_{\text{net}} \times R_{\text{category}} \rfloor$$
+### 4.1 معادلة الإنشاء على أوزان الفرز المعتمدة (Recycling Minting):
+الفرز عند المصدر مساران: **عضوي وجاف**؛ والمرفوض وزن مستبعد لا تنشأ عنه أي نقاط:
+$$\Delta P = \lfloor W_{\text{organic}} \times R_{\text{organic}} \rfloor + \lfloor W_{\text{dry}} \times R_{\text{dry}} \rfloor$$
+$$\Delta P_{\text{rejected}} = 0$$
 
 **القيد المحاسبي المتولد:**
 * **الطرف الدائن (Source Account):** `SYSTEM_MINT_ACCOUNT` ($\Delta P -$)

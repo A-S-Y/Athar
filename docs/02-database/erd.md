@@ -20,7 +20,7 @@ erDiagram
     HOUSEHOLD ||--o{ SERVICE_REQUEST : "requests collection"
     HOUSEHOLD ||--o{ COLLECTION_VISIT : "receives visits"
     HOUSEHOLD ||--o{ STORE_ORDER : "places orders"
-    HOUSEHOLD ||--o{ SUPPORT_TICKET : "files complaints"
+    HOUSEHOLD ||--o{ INCIDENT_REPORT : "reports issues"
     
     %% Geospatial Domain
     ACTIVE_NODE ||--o{ HOUSEHOLD : "contains location"
@@ -177,19 +177,38 @@ erDiagram
         timestamptz reserved_until "Stock Reservation TTL"
     }
 
-    SUPPORT_TICKET {
+    INCIDENT_REPORT {
         uuid id PK
-        varchar ticket_number UK
-        uuid household_id FK
-        uuid assigned_staff_id FK
-        enum category "missed_pickup/weight_dispute/card_lost"
-        enum priority "low/normal/urgent"
-        enum status "open/in_progress/resolved/closed"
+        uuid actor_id FK
+        varchar target_type "VISIT / TASK / ORDER / CARD"
+        uuid target_id
+        varchar incident_type "ANOMALY / DELAY / LOST_CARD / GENERAL"
         text description
+        text evidence_reference
+        enum status "new/triaged/resolved/closed"
         text resolution_notes
         timestamptz resolved_at
     }
 
+    CANDIDATE_APPLICATION {
+        uuid id PK
+        uuid user_account_id FK
+        varchar full_name
+        varchar national_id
+        varchar phone
+        text cv_file_url
+        enum status "submitted/reviewed/accepted/rejected"
+        timestamptz applied_at
+    }
+
+    VOLUNTEER_INTEREST {
+        uuid id PK
+        uuid user_account_id FK
+        varchar area
+        timestamptz consent_at
+        enum status "registered/contacted"
+        timestamptz contacted_at
+    }
 
     AUDIT_LOG {
         uuid id PK
@@ -209,39 +228,40 @@ erDiagram
 
 ## 2. المجموعات النطاقية للبيانات (Bounded Contexts)
 
-تنتظم الجداول الـ 28 داخل 6 مجموعات وظيفية متماسكة تحقق استقلالية الوحدات (`High Cohesion & Low Coupling`):
+تنتظم الجداول الـ 25 المعتمدة داخل 6 مجموعات وظيفية متماسكة تحقق استقلالية الوحدات (`High Cohesion & Low Coupling`):
 
 1. **نطاق الهوية والأمان (Identity & Security Context):**
    * `USER_ACCOUNT`: الحساب الرئيسي للمستخدم مع التشفير والفهرس المعمي للهاتف.
    * `ADMIN_STAFF_PROFILE`: بيانات موظفي الإدارة، الأقسام، والأدوار، والمصادقة الثنائية 2FA.
    * `AUDIT_LOG`: سجل التدقيق المؤسسي غير القابل للحذف.
 2. **نطاق المستفيدين والبيانات المكانية (Citizen & Spatial Context):**
-   * `HOUSEHOLD`: المنشأة أو الأسرة المرتبطة بالرمز المحاسبي القصير `entity_code`.
+   * `HOUSEHOLD`: المنشأة أو الأسرة المرتبطة بالمعرّف المحاسبي القصير `entity_code`.
    * `INTAKE_SURVEY`: استبيان الضم ومسودة الأسرة.
-   * `HOUSEHOLD_QR_TOKEN`: الرموز البصرية المشفرة للبطاقات الفيزيائية وحالات إبطالها.
+   * `HOUSEHOLD_QR_TOKEN`: الرموز البصرية للبطاقات الفيزيائية وحالات إبطالها.
    * `ACTIVE_NODE`: حدود النطاق الجغرافي للمنصورة ونسخ المضلعات المكانية المؤرخة.
    * `REJECTED_SERVICE_ATTEMPT`: محاولات طلب الخدمة المرفوضة خارج النطاق.
    * `DEMAND_WAITLIST`: قائمة انتظار المواطنين في المناطق غير المغطاة بعد.
 3. **نطاق العمليات الميدانية والإسناد (Field Dispatch & Intake Context):**
    * `SERVICE_REQUEST`: طلبات الجمع الرسمية المعتمدة داخل النطاق.
    * `WORKER_TASK_DISPATCH`: مهام الإسناد للعمال ومراقبة مهلة الاستجابة (10 دقائق).
-   * `COLLECTION_VISIT`: زيارات الجمع وتثبيت الأوزان المفرزة.
-   * `COLLECTION_ITEM`: تفاصيل الأوزان الإجمالية والصافية لكل مسار فرز.
-   * `FIELD_BATCH_IMPORT`: حزم استيراد دفعات العمل الميداني غير المتصل (Offline EOD).
+   * `COLLECTION_VISIT`: زيارات الجمع وتثبيت الأوزان المفرزة (عضوي، جاف، مرفوض).
+   * `COLLECTION_ITEM`: تفاصيل أوزان المسارين (عضوي وجاف) والمرفوض المستبعد.
+   * `FIELD_BATCH_IMPORT`: حزم استيراد دفعات العمل الميداني غير المتصل (Offline EOD CSV).
    * `FIELD_BATCH_ROW_ERROR`: الأخطاء المعزولة للصفوف الميدانية.
 4. **نطاق دفتر الأستاذ والمحاسبة المزدوجة (Financial & Points Ledger Context):**
    * `GREEN_POINTS_LEDGER`: دفتر القيود المزدوجة المتوازنة (Debit/Credit).
 5. **نطاق المتجر والمخزون والتوريد (Store & Inventory Context):**
    * `STORE_PRODUCT`: كتالوج السلع المدعومة وأسعارها بالنقاط والمبالغ النقدية ومخزونها.
-   * `STORE_ORDER`: دورة حياة طلب المتجر، حجز المخزون، وأمر الصرف الرسمي (`Release Order`).
-6. **نطاق الشركاء وخدمة العملاء (Partners & CRM Context):**
+   * `STORE_ORDER`: دورة حياة طلب المتجر، حجز المخزون، وإثبات الدفع، وأمر الصرف (`Release Order`).
+6. **نطاق الشركاء والبلاغات والمجتمع (Partners & Community Context):**
    * `RESOURCE_PARTNER`: بيانات مصانع ومستودعات التدوير الشريكة.
    * `COLLECTION_POINT`: نقاط ومحطات التجميع الوسيطة.
    * `MATERIAL_PRICE`: تسعيرة شراء وبيع المواد المفروزة بالكيلوجرام.
    * `PARTNER_DELIVERY`: شحنات تسليم المواد للشركاء.
    * `PARTNER_PAYMENT`: مطالبات ومستحقات التحصيل المالي للشركاء.
-   * `SUPPORT_TICKET`: تذاكر الشكاوى والدعم الفني للمواطنين.
-   * `CANDIDATE_APPLICATION` & `INCIDENT_REPORT` & `VOLUNTEER_INTEREST`: طلبات التوظيف وبلاغات الحوادث والتطوع.
+   * `INCIDENT_REPORT`: بلاغات الحوادث والاعتراضات واستثناءات الأوزان.
+   * `CANDIDATE_APPLICATION`: طلبات التوظيف.
+   * `VOLUNTEER_INTEREST`: تسجيل الرغبة في التطوع المجتمعي.
 
 ---
 

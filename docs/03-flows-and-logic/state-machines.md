@@ -42,9 +42,9 @@ stateDiagram-v2
 | `SUBMITTED` | `DISPATCH_TASK` | `DISPATCHED` | النظام الآلي / المشرف | التحقق من وجود العامل في نفس النطاق `ST_Covers`. |
 | `SUBMITTED` | `USER_CANCEL` | `CANCELLED` | المواطن | مسموح فقط خلال 15 دقيقة من رفع الطلب وقبل التوجيه. |
 | `DISPATCHED` | `WORKER_ACCEPT` | `IN_PROGRESS` | عامل الميدان | تسجيل الطابع الزمني وتحديث خريطة التتبع المباشر. |
-| `IN_PROGRESS` | `RECORD_WEIGH` | `WEIGHED` | عامل الميدان (عبر الميزان) | قراءة الميزان الرقمي عبر Bluetooth وفحص الشذوذ. |
+| `IN_PROGRESS` | `RECORD_WEIGH` | `WEIGHED` | عامل الميدان | تدوين قراءة الميزان يدوياً ومرجع الأداة وفحص الشذوذ. |
 | `WEIGHED` | `CONFIRM_RECEIPT` | `COMPLETED` | المواطن / المشرف | إصدار القيد المحاسبي في دفتر الأستاذ وإرسال إشعار الرصيد. |
-| `WEIGHED` | `FLAG_ANOMALY` | `DISPUTED` | خوارزمية الذكاء / المواطن | تجميد إيداع النقاط حتى مراجعة موظف الرقابة بالبلدية. |
+| `WEIGHED` | `FLAG_ANOMALY` | `DISPUTED` | فحص الشذوذ / المواطن | تجميد إيداع النقاط حتى مراجعة موظف الرقابة أو المشرف. |
 
 ---
 
@@ -64,7 +64,9 @@ stateDiagram-v2
 
     CANCELLED --> [*]: تحرير المخزون واسترداد النقاط المحسومة
 
-    VERIFIED_PAID --> FULFILLED: تسليم السلعة أو الخدمة للمواطن بنجاح
+    VERIFIED_PAID --> PROCESSING: تجهيز الطلب في المستودع
+    PROCESSING --> RELEASED: إصدار أمر الصرف
+    RELEASED --> FULFILLED: تسليم السلعة للمواطن بنجاح
     
     FULFILLED --> [*]
 ```
@@ -76,65 +78,62 @@ stateDiagram-v2
 
 ---
 
-## 3. آلة حالة مهام التكليف الميداني (`worker_tasks`)
+## 3. آلة حالة زيارات الجمع الميداني (`collection_visits`)
 
-تتبع خطوات تحرك عمال النظافة وأسطول دراجات النقل في شوارع المنصورة لحظة بلحظة لضمان الالتزام بمواعيد الخدمة.
+تضبط مسار توثيق الأوزان (عضوي، جاف، مرفوض) ومراجعة الشذوذ من قِبل المشرف:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> UNASSIGNED: طلب خدمة جاهز للتوزيع
+    [*] --> RECORDED: تدوين الأوزان يدوياً ومرجع الميزان
 
-    UNASSIGNED --> ASSIGNED: تخصيص المهمة لعامل محدد
-    
-    ASSIGNED --> ACKNOWLEDGED: تأكيد العامل للاستلام عبر تطبيقه
-    ASSIGNED --> TIMEOUT: عدم رد العامل خلال 5 دقائق (إعادة تعيين)
-    
-    TIMEOUT --> UNASSIGNED: إعادة المهمة لطابور التوزيع الآلي
+    RECORDED --> APPROVED: أوزان طبيعية مطابقة
+    RECORDED --> UNDER_REVIEW: رصد قفزة شاذة أو تجاوز السقف
 
-    ACKNOWLEDGED --> EN_ROUTE: انطلاق العامل نحو موقع العميل
-    
-    EN_ROUTE --> AT_LOCATION: وصول العامل لنطاق المنزل (Geofence Arrival)
-    EN_ROUTE --> INCIDENT: تعطل الدراجة أو عائق مروري طارئ
-    
-    INCIDENT --> UNASSIGNED: تحويل المهمة لعامل بديل فوراً
+    UNDER_REVIEW --> APPROVED: اعتماد المشرف بعد التحقق الميداني
+    UNDER_REVIEW --> REJECTED: رفض المشرف للزيارة بالكامل
 
-    AT_LOCATION --> COMPLETED: استلام وفرز ووزن الشحنة
-    AT_LOCATION --> NO_SHOW: عدم استجابة المواطن بعد الانتظار الميداني
-
-    NO_SHOW --> FAILED: تسجيل تقرير تعذر الاستلام
-    
-    COMPLETED --> [*]
-    FAILED --> [*]
+    APPROVED --> [*]: قيد النقاط في دفتر الأستاذ
+    REJECTED --> [*]: إغلاق بلا نقاط
 ```
 
 ---
 
-## 4. آلة حالة تذاكر الدعم والشكاوى الرقابية (`support_tickets`)
+## 4. آلة حالة مهام الإسناد الميداني (`worker_task_dispatches`)
 
-تطبيق اتفاقية مستوى الخدمة (SLA) الصارمة لحل اعتراضات المواطنين ومشاكل الأوزان والتأخيرات.
+تتبع خطوات تحرك عمال النظافة ومهلة الإقرار (10 دقائق):
 
 ```mermaid
 stateDiagram-v2
-    [*] --> OPEN: فتح بلاغ جديد من المواطن أو النظام
+    [*] --> ASSIGNED: تكليف العامل بالمهمة
+    
+    ASSIGNED --> ACKNOWLEDGED: إقرار العامل للاستلام عبر تطبيقه
+    ASSIGNED --> TIMEOUT_SMS: عدم رد العامل خلال 10 دقائق (إرسال تنبيه SMS آلي)
+    
+    TIMEOUT_SMS --> ACKNOWLEDGED: إقرار متأخر
+    TIMEOUT_SMS --> REASSIGNED: تدخل المشرف وإعادة الإسناد لعامل بديل
 
-    OPEN --> TRIAGED: الفرز الآلي وتحديد الأولوية والقسم المعني
+    ACKNOWLEDGED --> IN_PROGRESS: انطلاق العامل لموقع الأسرة
+    IN_PROGRESS --> COMPLETED: إتمام الجمع وتسجيل الأوزان
     
-    TRIAGED --> IN_PROGRESS: بدء معالجة التذكرة من قِبل موظف خدمة العملاء
-    
-    IN_PROGRESS --> ESCALATED: تجاوز مهلة الحل (SLA Breach > 4 ساعات)
-    
-    ESCALATED --> IN_PROGRESS: تدخل مدير خدمة العملاء وإعادة التوجيه
-
-    IN_PROGRESS --> RESOLVED: تقديم حل وإشعار المواطن (تسوية نقاط أو اعتذار)
-    
-    RESOLVED --> CLOSED: قبول المواطن للحل أو انقضاء 48 ساعة دون رد
-    RESOLVED --> REOPENED: اعتراض المواطن على نتيجة الحل وعدم الرضا
-
-    REOPENED --> IN_PROGRESS: إعادة فتح القضية للتحقيق الإداري
-    
-    CLOSED --> [*]
+    COMPLETED --> [*]
+    REASSIGNED --> [*]
 ```
 
-### معايير تصعيد الدعم الفني:
-* **الأولوية القصوى (URGENT):** اعتراضات الأوزان التي تشير إلى شكوك احتيال أو سلوك غير مهني من العامل — مهلة الحل ساعتان فقط.
-* **الأولوية العادية (MEDIUM):** استفسارات التطبيق أو تأخر الجمع العادي — مهلة الحل 12 ساعة كحد أقصى.
+---
+
+## 5. آلة حالة البلاغات الميدانية والاعتراضات (`incident_reports`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> NEW: تسجيل بلاغ من المواطن أو العامل أو النظام
+
+    NEW --> TRIAGED: فرز البلاغ وتحديد القسم المعني
+    TRIAGED --> IN_PROGRESS: مباشرة التحقيق الميداني أو الإداري
+    
+    IN_PROGRESS --> RESOLVED: تقديم حل (تسوية نقاط بقيد عكسي أو اعتذار)
+    RESOLVED --> CLOSED: قبول الحل وإغلاق البلاغ
+    RESOLVED --> REOPENED: اعتراض المستفيد وإعادة فتح التحقيق
+
+    REOPENED --> IN_PROGRESS: إعادة المعالجة
+    CLOSED --> [*]
+```
