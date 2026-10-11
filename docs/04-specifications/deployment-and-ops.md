@@ -21,7 +21,7 @@ flowchart TD
     subgraph AppLayer ["طبقة الخوادم والعمال (Node.js 20 LTS)"]
         FastifyAPI1["خادم Fastify API (العقدة 1)"]
         FastifyAPI2["خادم Fastify API (العقدة 2)"]
-        OutboxWorker["مشغل صندوق الصادر (Outbox Worker)"]
+        BackgroundWorker["معالج طوابير المهام (BullMQ Worker)"]
         AnalyticsWorker["عامل التحليلات والتقارير (Cron Worker)"]
     end
 
@@ -43,10 +43,10 @@ flowchart TD
     FastifyAPI2 --> PostgresDB
     FastifyAPI1 --> RedisCache
     FastifyAPI2 --> RedisCache
-    OutboxWorker --> PostgresDB
-    OutboxWorker --> RedisCache
-    OutboxWorker --> YemenSMS
-    OutboxWorker --> FCM
+    BackgroundWorker --> PostgresDB
+    BackgroundWorker --> RedisCache
+    BackgroundWorker --> YemenSMS
+    BackgroundWorker --> FCM
 ```
 
 ---
@@ -165,13 +165,13 @@ services:
     ports:
       - "3000:3000"
 
-  outbox_worker:
+  background_worker:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: athar_outbox_worker
+    container_name: athar_background_worker
     restart: always
-    command: ["node", "dist/workers/outbox-dispatcher.js"]
+    command: ["node", "dist/workers/background-processor.js"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -218,7 +218,7 @@ volumes:
     "checks": {
       "database": "UP (12ms)",
       "redis": "UP (2ms)",
-      "outboxQueueLag": 0
+      "backgroundQueueLag": 0
     }
   }
   ```

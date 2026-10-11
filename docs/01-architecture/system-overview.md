@@ -22,12 +22,12 @@
    * المسار الطبيعي للعمليات هو الاتصال المباشر بالإنترنت (`Online-First`).
    * في الميدان وأثناء انقطاع تغطية شبكة الهاتف في أزقة المنصورة، يدعم تطبيق العامل التخزين المحلي المشفر للبيانات، مع الترحيل المجمع نهاية الوردية (`End-of-Day Batch Import`) بعد التحقق البرمجي التام وفحص التكرار.
 
-4. **نمط صندوق الصادر الموثوق (Transactional Outbox Pattern):**
-   * فصل المهام غير المتزامنة الثقيلة (إرسال رسائل التحقق SMS، الإشعارات الموجهة Push Notifications، مطابقة الدفعات الميدانية) عن تدفق الاستجابة اللحظي للـ API.
-   * كتابة الرسائل والأحداث كصفوف في جدول `outbox_messages` ضمن نفس المعاملة الذرية للعملية، ليتولى معالجو المهام الخلفية (`TypeScript Workers`) سحبها وتنفيذها بشكل غير متزامن ومضمون.
+4. **طوابير المهام والمعالجة الخلفية غير المتزامنة (Asynchronous Background Queues):**
+   * فصل المهام غير المتزامنة الثقيلة (إرسال رسائل التحقق SMS، الإشعارات الموجهة Push Notifications، ومطابقة الدفعات الميدانية) عن تدفق الاستجابة اللحظي للـ API عبر طوابير BullMQ ومحرك Redis.
+   * إدراج مهام الإشعارات والعمليات الثقيلة مباشرة في الطوابير ليتولى معالجو المهام الخلفية (`TypeScript Workers`) تنفيذها بشكل مستقل وموثوق.
 
 5. **المحاسبة المالية المزدوجة للنقاط (Double-Entry Points Accounting):**
-   * تُعامل النقاط الخضراء كالتزام مالي حقيقي يستند إلى قيود متوازنة ($\sum Debits = \sum Credits$) بين حساب الإصدار وحساب المواطن وحساب ضمان المتجر وحساب الإتلاف، مما يمنع رياضياً أي تضخم أو تزييف في الأرصدة.
+   * تُعامل النقاط الخضراء كالتزام مالي حقيقي يستند إلى قيود متوازنة ($\sum Debits = \sum Credits$) بين حساب الإصدار وحساب المواطن وحساب الإتلاف، مما يمنع رياضياً أي تضخم أو تزييف في الأرصدة.
 
 ---
 
@@ -60,7 +60,7 @@ flowchart TD
     end
 
     subgraph WorkerPool ["معالجات المهام الخلفية (TypeScript Workers)"]
-        W1["Outbox Poller & Dispatcher"]
+        W1["BullMQ Queue Processor"]
         W2["SMS & OTP Worker"]
         W3["Push Notifications Worker"]
         W4["10-Min Dispatch Timeout Checker"]
@@ -78,7 +78,7 @@ flowchart TD
     Gateway --> CoreBackend
     CoreBackend --> DB
     CoreBackend --> REDIS
-    CoreBackend -.-> |Transactional Outbox| DB
+    CoreBackend --> |Enqueues Jobs| REDIS
     WorkerPool <--> DB
     WorkerPool <--> REDIS
     CoreBackend --> S3
@@ -108,7 +108,7 @@ flowchart TB
     Worker["👷 العامل الميداني (Field Worker)"]
     Supervisor["👮 المشرف الميداني (Field Supervisor)"]
     Staff["👔 موظف الإدارة والدعم (Back-Office Staff)"]
-    Partner["🏬 الشريك والمتجر (Merchant / Partner)"]
+    StoreKeeper["📦 مسؤول المستودع والمتجر (Store Keeper)"]
 
     AtharSystem["♻️ منظومة «أثر» المركزية<br/>(Athar Waste Management Platform)"]
 
@@ -119,8 +119,8 @@ flowchart TB
     Citizen --> |"طلب جمع، استبدال نقاط، تتبع"| AtharSystem
     Worker --> |"مسح بطاقات QR، تسجيل أوزان، إقرار مهام"| AtharSystem
     Supervisor --> |"اعتماد الأوزان، مراجعة استثناءات"| AtharSystem
-    Staff --> |"مراقبة الإسناد، خدمة العملاء، إدارة المخزون"| AtharSystem
-    Partner --> |"صرف السلع، تسليم المواد، التحصيل المالي"| AtharSystem
+    Staff --> |"مراقبة الإسناد، خدمة العملاء، التدقيق المالي"| AtharSystem
+    StoreKeeper --> |"تجهيز الطلبات، فحص المخزون، تسليم المواد"| AtharSystem
 
     AtharSystem --> |"إرسال رموز التحقق OTP وتنبيهات المهام"| SmsGateway
     AtharSystem --> |"إرسال إشعارات المهام والتحديثات"| FcmService
@@ -170,9 +170,9 @@ flowchart LR
 
 ---
 
-## 5. معمارية صندوق الصادر الموثوق (Transactional Outbox Deep-Dive)
+## 5. معمارية معالجة المهام الخلفية غير المتزامنة (Asynchronous Background Queue Deep-Dive)
 
-لضمان الاتساق النهائي للبيانات وعدم فقدان أي رسالة نصية أو إشعار عند تعطل الشبكة أو فشل المزود الخارجي، تطبق المنظومة نمط **Transactional Outbox**:
+لضمان أعلى درجات الأداء والاستجابة اللحظية لبوابات الـ API، تعتمد المنظومة نمط طوابير المهام غير المتزامنة عبر **BullMQ** ومحرك **Redis**:
 
 ```mermaid
 sequenceDiagram
@@ -180,34 +180,31 @@ sequenceDiagram
     actor Worker as العامل الميداني
     participant API as خادم التطبيقات (Fastify)
     participant DB as قاعدة البيانات (PostgreSQL)
-    participant OutboxWorker as معالج الصندوق الصادر (Worker)
+    participant Queue as طابور المهام (Redis / BullMQ)
+    participant JobWorker as معالج المهام الخلفية (Worker)
     participant SMS as مزود الرسائل (SMS Gateway)
 
     Worker->>API: إنهاء زيارة جمع وتثبيت الأوزان
-    Note over API,DB: بدء معاملة ذرية موحدة (DB Transaction)
+    Note over API,DB: معاملة ذرية لحفظ البيانات الأساسية
     API->>DB: 1. حفظ سجل الزيارة (CollectionVisit)
     API->>DB: 2. قيد النقاط في دفتر الأستاذ (GreenPointsLedger)
-    API->>DB: 3. كتابة رسالة الإشعار في جدول (outbox_messages)
-    Note over API,DB: اعتماد المعاملة (COMMIT)
+    API->>Queue: 3. إدراج مهمة الإشعار في طابور المهام (NotificationJob)
     API-->>Worker: استجابة فورية بنجاح العملية (200 OK)
 
-    loop كل 1-2 ثانية (Worker Polling / Event Trigger)
-        OutboxWorker->>DB: استعلام الرسائل المعلقة (status = 'pending' FOR UPDATE SKIP LOCKED)
-        OutboxWorker->>SMS: إرسال رسالة SMS للمواطن بالنقاط المكتسبة
-        alt نجاح الإرسال
-            SMS-->>OutboxWorker: استجابة بالنجاح (Message SID)
-            OutboxWorker->>DB: تحديث الحالة إلى 'sent' وتدوين الطابع الزمني
-        else فشل الإرسال (خطأ مؤقت)
-            SMS-->>OutboxWorker: فشل الاتصال / خطأ الشبكة
-            OutboxWorker->>DB: زيادة retry_count وجدولة المحاولة التالية (Exponential Backoff)
-        end
+    Note over Queue,JobWorker: معالجة غير متزامنة في الخلفية
+    Queue->>JobWorker: استلام مهمة الإشعار
+    JobWorker->>SMS: إرسال رسالة SMS للمواطن بالنقاط المكتسبة
+    alt نجاح الإرسال
+        SMS-->>JobWorker: تأكيد استلام الرسالة
+    else تعثر الإرسال المؤقت
+        JobWorker->>Queue: إعادة جدولة المهمة بتراجع أسي (Exponential Backoff)
     end
 ```
 
 ### مزايا النمط:
-1. **الذرية المطلقة:** يستحيل إرسال إشعار بنقاط لم تُحفظ في قاعدة البيانات، ويستحيل حفظ نقاط دون كتابة أمر إشعارها في الصندوق.
-2. **استقلالية زمن الاستجابة:** زمن استجابة الـ API للعامل الميداني لا يتأثر إطلاقاً ببطء أو تعطل مزودي خدمة الـ SMS الخارجيين.
-3. **التعافي الذاتي:** أي انقطاع مؤقت في بوابات الاتصالات المحلية يتم استدراكه تلقائياً بمجرد عودة الخدمة.
+1. **سرعة الاستجابة الخاطفة:** زمن استجابة الـ API للعامل الميداني لا يتأثر إطلاقاً ببطء أو تعطل مزودي خدمة الـ SMS الخارجيين.
+2. **عزل الأعطال:** تعثر بوابات الرسائل النصية لا يوقف تسجيل الأوزان ولا يعطل سير العمل الميداني.
+3. **إعادة المحاولة الذكية:** يتولى محرك BullMQ إدارة محاولات الإرسال تلقائياً مع تسجيل إحصائيات المعالجة.
 
 ---
 

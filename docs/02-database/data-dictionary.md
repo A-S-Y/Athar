@@ -19,15 +19,15 @@
 ## 2. النطاق 1: الهوية والمصادقة وإدارة الوصول (Identity & Access Context)
 
 ### 2.1 جدول المستخدمين الأساسي (`users`)
-يخزن الحسابات الأساسية لجميع أطراف النظام (مواطنون، عمال ميدان، شركاء، موظفو إدارة).
+يخزن الحسابات الأساسية لجميع أطراف النظام (مواطنون، عمال ميدان، موظفو إدارة ومستودع).
 
 | اسم الحقل | النوع البرمجي | القيود (Constraints) | الوصف والشرح التقني |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد للمستخدم (UUIDv7) |
 | `phone_bindex` | `VARCHAR(64)` | `UNIQUE NOT NULL` | فهرس أعمى مشفر (Blind Index) لرقم الهاتف للبحث السريع |
 | `encrypted_phone` | `TEXT` | `NOT NULL` | رقم الهاتف مشفر برمجياً بواسطة AES-256-GCM |
-| `full_name` | `VARCHAR(150)` | `NOT NULL` | الاسم الرباعي أو التجاري المعتمد للمستخدم |
-| `role` | `user_role_enum` | `NOT NULL DEFAULT 'RESIDENT'` | دور المستخدم: `RESIDENT`, `FIELD_WORKER`, `MERCHANT`, `ADMIN_SUPERVISOR`, `ADMIN_DISPATCHER`, `ADMIN_FINANCE`, `ADMIN_SUPPORT`, `SUPER_ADMIN` |
+| `full_name` | `VARCHAR(150)` | `NOT NULL` | الاسم الرباعي المعتمد للمستخدم |
+| `role` | `user_role_enum` | `NOT NULL DEFAULT 'RESIDENT'` | دور المستخدم: `RESIDENT`, `FIELD_WORKER`, `ADMIN_SUPERVISOR`, `ADMIN_DISPATCHER`, `ADMIN_FINANCE`, `ADMIN_SUPPORT`, `SUPER_ADMIN` |
 | `status` | `user_status_enum`| `NOT NULL DEFAULT 'PENDING_VERIFICATION'` | حالة الحساب: `PENDING_VERIFICATION`, `ACTIVE`, `SUSPENDED`, `BANNED` |
 | `failed_login_attempts` | `INT` | `DEFAULT 0` | عداد محاولات الدخول الخاطئة لمنع هجمات التخمين |
 | `lockout_until` | `TIMESTAMPTZ` | `NULL` | توقيت فك الحظر الزمني في حال تجاوز الحد المسموح |
@@ -170,8 +170,8 @@
 | اسم الحقل | النوع البرمجي | القيود | الوصف |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PRIMARY KEY` | معرف الحساب المالي |
-| `user_id` | `UUID` | `NULL REFERENCES users(id)` | المالك (مواطن أو تاجر، ويكون NULL لحسابات النظام) |
-| `account_type` | `account_type_enum`| `NOT NULL` | النوع: `SYSTEM_MINT`, `HOUSEHOLD`, `MERCHANT_ESCROW`, `SYSTEM_BURN` |
+| `user_id` | `UUID` | `NULL REFERENCES users(id)` | المالك (مواطن، ويكون NULL لحسابات النظام) |
+| `account_type` | `account_type_enum`| `NOT NULL` | النوع: `SYSTEM_MINT`, `HOUSEHOLD`, `SYSTEM_BURN` |
 | `currency` | `VARCHAR(10)` | `NOT NULL DEFAULT 'GP'` | العملة: Green Points (نقاط خضراء) |
 | `balance` | `BIGINT` | `NOT NULL DEFAULT 0` | الرصيد الحالي المتزامن (محمي بتشديد المعاملات) |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL` | وقت فتح الحساب |
@@ -186,7 +186,7 @@
 | `source_account_id`| `UUID`| `REFERENCES ledger_accounts(id)` | الحساب الدائن / المصدر (الذي خرجت منه النقاط) |
 | `dest_account_id` | `UUID`| `REFERENCES ledger_accounts(id)` | الحساب المدين / الوجهة (الذي استلم النقاط) |
 | `amount` | `BIGINT` | `NOT NULL CHECK (amount > 0)` | كمية النقاط المنقولة (موجبة دائماً) |
-| `operation_type` | `operation_type_enum`| `NOT NULL` | نوع العملية: `MINT_RECYCLING`, `REDEEM_STORE_VOUCHER`, `MERCHANT_PAYOUT`, `EXPIRE_BURN`, `ADMIN_ADJUSTMENT` |
+| `operation_type` | `operation_type_enum`| `NOT NULL` | نوع العملية: `MINT_RECYCLING`, `REDEEM_STORE_PRODUCT`, `EXPIRE_BURN`, `ADMIN_ADJUSTMENT` |
 | `related_entity_id`| `UUID`| `NULL` | مرجع الكيان المرتبط (معرف الوزن، معرف طلب المتجر، إلخ) |
 | `idempotency_key` | `VARCHAR(64)` | `UNIQUE NOT NULL` | منع تكرار العمليات الحسابية |
 | `notes` | `VARCHAR(255)` | `NULL` | بيان توضيحي للمعاملة |
@@ -194,47 +194,43 @@
 
 ---
 
-## 6. النطاق 5: متجر المكافآت وقسائم الشركاء (Rewards Store & Merchant Escrow)
+## 6. النطاق 5: المتجر الرقمي والطلبات (Digital Store & Two-Step Orders)
 
-### 6.1 جدول الشركاء التجاريين المعتمدين (`merchants`)
-المتاجر، السوبرماركت، والمكتبات التي تقبل النقاط في مديرية المنصورة.
+### 6.1 جدول منتجات المتجر (`store_products`)
+السلع والمنتجات الصديقة للبيئة المتاحة للاستبدال أو الشراء الداخلي في مديرية المنصورة.
 
-| اسم الحقل | النوع البرمجي | القيود | الوصف |
-| :--- | :--- | :--- | :--- |
-| `id` | `UUID` | `PRIMARY KEY` | المعرف الفريد للتاجر |
-| `user_id` | `UUID` | `UNIQUE REFERENCES users(id)` | حساب الدخول للتاجر |
-| `business_name` | `VARCHAR(150)` | `NOT NULL` | الاسم التجاري للمتجر |
-| `commercial_reg` | `VARCHAR(50)` | `NOT NULL` | رقم السجل التجاري أو رخصة مزاولة المهنة |
-| `settlement_rate`| `DECIMAL(8,4)` | `NOT NULL DEFAULT 0.0500` | سعر صرف النقطة الواحدة إلى الريال اليمني (YER) عند التصفية |
-| `status` | `merchant_status_enum`| `DEFAULT 'ACTIVE'` | الحالات: `ACTIVE`, `SUSPENDED`, `UNDER_AUDIT` |
-| `created_at` | `TIMESTAMPTZ` | `NOT NULL` | وقت التعاقد والاعتماد |
-
-### 6.2 جدول سلع ومكافآت المتجر (`store_items`)
 | اسم الحقل | النوع البرمجي | القيود | الوصف |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PRIMARY KEY` | المعرف الفريد للمنتج |
-| `merchant_id` | `UUID` | `REFERENCES merchants(id)` | التاجر العارض |
-| `title_ar` | `VARCHAR(150)` | `NOT NULL` | عنوان المكافأة بالعربية |
+| `title_ar` | `VARCHAR(150)` | `NOT NULL` | عنوان السلعة بالعربية |
 | `title_en` | `VARCHAR(150)` | `NOT NULL` | العنوان بالإنجليزية |
 | `points_price` | `INT` | `NOT NULL CHECK (points_price > 0)` | التكلفة بالنقاط الخضراء |
+| `cash_price_yer` | `DECIMAL(12,2)` | `NOT NULL DEFAULT 0.00` | السعر النقدي بالريال اليمني (في حال الشراء المزدوج) |
 | `stock_quantity`| `INT` | `NOT NULL CHECK (stock_quantity >= 0)` | الكمية المتاحة في المخزون (محمية من الـ Race Condition) |
 | `category` | `store_category_enum`| `NOT NULL` | التصنيف: `GROCERY`, `EDUCATION`, `SOLAR_ENERGY`, `SERVICES` |
 | `is_available` | `BOOLEAN` | `DEFAULT TRUE` | حالة الإتاحة للعرض والشراء |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL` | تاريخ الإضافة |
 
-### 6.3 جدول طلبات الشراء والقسائم الرقمية (`store_orders`)
+### 6.2 جدول طلبات الشراء والتحقق الثنائي (`store_orders`)
+توثيق عمليات الشراء والتحقق الإداري من سند التحويل البنكي أو النقدي.
+
 | اسم الحقل | النوع البرمجي | القيود | الوصف |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PRIMARY KEY` | المعرف الفريد للطلب |
 | `order_number` | `VARCHAR(30)` | `UNIQUE NOT NULL` | رقم الطلب المرجعي |
 | `buyer_id` | `UUID` | `REFERENCES users(id)` | المواطن المشتري |
-| `item_id` | `UUID` | `REFERENCES store_items(id)` | السلعة المشتراة |
-| `points_spent` | `INT` | `NOT NULL` | إجمالي النقاط المحسومة |
-| `voucher_code` | `VARCHAR(32)` | `UNIQUE NOT NULL` | كود القسيمة الآمن المشفر (QR Code Hash) |
-| `status` | `voucher_status_enum`| `NOT NULL DEFAULT 'VOUCHER_GENERATED'` | الحالات: `VOUCHER_GENERATED`, `REDEEMED`, `EXPIRED`, `CANCELLED` |
-| `expires_at` | `TIMESTAMPTZ` | `NOT NULL` | تاريخ انتهاء صلاحية الكوبون |
-| `redeemed_at` | `TIMESTAMPTZ` | `NULL` | لحظة المسح والاعتماد في نقطة بيع التاجر (POS) |
-| `created_at` | `TIMESTAMPTZ` | `NOT NULL` | وقت الإصدار |
+| `product_id` | `UUID` | `REFERENCES store_products(id)` | السلعة المطلوبة |
+| `quantity` | `INT` | `NOT NULL CHECK (quantity > 0)` | الكمية المطلوبة |
+| `points_spent` | `INT` | `NOT NULL DEFAULT 0` | إجمالي النقاط المحسومة |
+| `cash_amount_yer`| `DECIMAL(12,2)` | `NOT NULL DEFAULT 0.00` | المبلغ النقدي المطلوب (إن وجد) |
+| `payment_method` | `payment_method_enum`| `NOT NULL` | طريقة الدفع: `POINTS_ONLY`, `BANK_TRANSFER`, `CASH_ON_DELIVERY` |
+| `proof_image_url`| `VARCHAR(500)` | `NULL` | رابط صورة إشعار الحوالة البنكية / السند المرفوع |
+| `transfer_reference`| `VARCHAR(100)`| `NULL` | رقم الإشعار أو الحوالة البنكية المدخل من المشتري |
+| `status` | `order_status_enum` | `NOT NULL DEFAULT 'PENDING_VERIFICATION'` | الحالات: `PENDING_VERIFICATION`, `VERIFIED_PAID`, `FULFILLED`, `REJECTED` |
+| `rejection_reason`| `VARCHAR(255)`| `NULL` | سبب رفض الإشعار المالي إن وجد |
+| `verified_by_staff_id`| `UUID` | `NULL REFERENCES users(id)` | الموظف الإداري الذي دقق سند التحويل |
+| `verified_at` | `TIMESTAMPTZ` | `NULL` | وقت التحقق والاعتماد المالي |
+| `created_at` | `TIMESTAMPTZ` | `NOT NULL` | وقت تقديم الطلب |
 
 ---
 
@@ -249,7 +245,7 @@
 | `ticket_number` | `VARCHAR(25)` | `UNIQUE NOT NULL` | رقم البلاغ (مثال: `TCK-2026-0042`) |
 | `resident_id` | `UUID` | `REFERENCES users(id)` | العميل الشاكي |
 | `related_request_id` | `UUID` | `NULL REFERENCES service_requests(id)` | الطلب المعني في حال وجود نزاع وزني |
-| `category` | `ticket_cat_enum` | `NOT NULL` | التصنيف: `WEIGHT_DISPUTE`, `DELAYED_PICKUP`, `APP_ISSUE`, `MERCHANT_DISPUTE` |
+| `category` | `ticket_cat_enum` | `NOT NULL` | التصنيف: `WEIGHT_DISPUTE`, `DELAYED_PICKUP`, `APP_ISSUE`, `STORE_ORDER_ISSUE` |
 | `priority` | `ticket_priority_enum`| `DEFAULT 'MEDIUM'` | الأولوية: `LOW`, `MEDIUM`, `HIGH`, `URGENT` |
 | `status` | `ticket_status_enum`| `DEFAULT 'OPEN'` | الحالات: `OPEN`, `TRIAGED`, `IN_PROGRESS`, `RESOLVED`, `CLOSED` |
 | `assigned_agent_id`| `UUID` | `NULL REFERENCES users(id)` | موظف خدمة العملاء المكلف بالحل |
@@ -268,8 +264,8 @@
 | :--- | :--- | :--- | :--- |
 | `id` | `BIGSERIAL` | `PRIMARY KEY` | معرف تسلسلي ضخم غير منقطع |
 | `actor_id` | `UUID` | `NULL REFERENCES users(id)` | الموظف أو المستخدم الذي نفذ الإجراء (أو النظام) |
-| `action` | `VARCHAR(100)` | `NOT NULL` | اسم العملية (مثلاً: `ADMIN_ZONE_OVERRIDE`, `POINTS_FORCE_ADJUST`) |
-| `entity_type` | `VARCHAR(60)` | `NOT NULL` | الكيان المتأثر (`service_requests`, `ledger_accounts`, إلخ) |
+| `action` | `VARCHAR(100)` | `NOT NULL` | اسم العملية (مثلاً: `ADMIN_ZONE_OVERRIDE`, `POINTS_FORCE_ADJUST`, `STORE_ORDER_VERIFIED`) |
+| `entity_type` | `VARCHAR(60)` | `NOT NULL` | الكيان المتأثر (`service_requests`, `ledger_accounts`, `store_orders` إلخ) |
 | `entity_id` | `UUID` | `NOT NULL` | معرف السجل المتأثر |
 | `before_state` | `JSONB` | `NULL` | لقطة البيانات الكاملة قبل التعديل |
 | `after_state` | `JSONB` | `NOT NULL` | لقطة البيانات الكاملة بعد التعديل |
@@ -278,24 +274,20 @@
 
 ---
 
-## 9. النطاق 8: المعالجة الخلفية وصندوق الصادر الموثوق (Transactional Outbox)
+## 9. النطاق 8: المزامنة الميدانية وطوابير الخلفية (Field Batch Sync & Background Workers)
 
-### 9.1 جدول صندوق الصادر الموثوق (`outbox_messages`)
-تطبيق **Transactional Outbox Pattern** لضمان تسليم الأحداث (SMS, FCM, Workers) دون فقدان البيانات.
+### 9.1 جدول استيراد الدفعات الميدانية (`field_batch_imports`)
+توثيق مزامنة العمليات غير المتصلة (Offline Sync) من تطبيق جامع النفايات الميداني عبر Fastify وطوابير BullMQ.
 
 | اسم الحقل | النوع البرمجي | القيود | الوصف |
 | :--- | :--- | :--- | :--- |
-| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد للرسالة |
-| `aggregate_type`| `VARCHAR(60)` | `NOT NULL` | نوع النطاق المصدر (`SERVICE_REQUEST`, `LEDGER`, `STORE_ORDER`) |
-| `aggregate_id` | `UUID` | `NOT NULL` | معرف الكيان التابع |
-| `event_type` | `VARCHAR(100)` | `NOT NULL` | اسم الحدث (مثال: `PointsMintedEvent`, `TaskDispatchedEvent`) |
-| `payload` | `JSONB` | `NOT NULL` | الحمولة البرمجية الكاملة للحدث |
-| `status` | `outbox_status_enum`| `NOT NULL DEFAULT 'PENDING'` | الحالة: `PENDING`, `PROCESSING`, `PUBLISHED`, `FAILED` |
-| `retry_count` | `INT` | `DEFAULT 0` | عدد محاولات الإرسال في حال تعثر الشبكة |
-| `last_error` | `TEXT` | `NULL` | تفاصيل رسالة الخطأ الأخيرة |
-| `scheduled_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | موعد الاستحقاق المجدول للمعالجة |
-| `published_at` | `TIMESTAMPTZ` | `NULL` | وقت النشر النهائي والتفريغ |
-| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت التوليد داخل المعاملة المصرفية |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | معرف دفعة المزامنة الميدانية |
+| `collector_id` | `UUID` | `REFERENCES users(id)` | جامع النفايات منفذ الدفعة |
+| `batch_reference` | `VARCHAR(60)` | `UNIQUE NOT NULL` | الرقم المرجعي للدفعة من جهاز الميدان |
+| `records_count` | `INT` | `NOT NULL CHECK (records_count > 0)` | إجمالي السجلات المضمنة بالدفعة |
+| `status` | `batch_status_enum` | `NOT NULL DEFAULT 'RECEIVED'` | الحالات: `RECEIVED`, `PROCESSING`, `COMPLETED`, `FAILED` |
+| `error_summary` | `TEXT` | `NULL` | تفاصيل الأخطاء في حال تعثر بعض السجلات |
+| `synced_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت استقبال الدفعة ومعالجتها |
 
 ---
 
@@ -306,9 +298,9 @@
 CREATE INDEX idx_geofence_boundary ON geofence_zones USING GIST (boundary);
 CREATE INDEX idx_household_coords ON household_addresses USING GIST (coordinates);
 
--- 2. فهرس صندوق الصادر لمعالجة الطوابير في أجزاء من الثانية
-CREATE INDEX idx_outbox_queue ON outbox_messages (status, scheduled_at) 
-WHERE status IN ('PENDING', 'FAILED');
+-- 2. فهرس طلبات المتجر للتدقيق المالي السريع
+CREATE INDEX idx_store_orders_status ON store_orders (status, created_at)
+WHERE status = 'PENDING_VERIFICATION';
 
 -- 3. فهارس دفتر الأستاذ للبحث التاريخي والتدقيق المالي
 CREATE INDEX idx_ledger_accounts ON green_points_ledger (source_account_id, dest_account_id);

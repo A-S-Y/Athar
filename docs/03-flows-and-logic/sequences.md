@@ -71,7 +71,7 @@ sequenceDiagram
     participant WApp as تطبيق العامل (Worker App)
     participant API as خادم Fastify API
     participant DB as قاعدة البيانات (PostgreSQL)
-    participant Outbox as صندوق الصادر (outbox_messages)
+    participant Queue as طابور المعالجة (Redis / BullMQ)
     participant WorkerQueue as عمال المعالجة (BullMQ Worker)
     participant Push as خدمة الإشعارات (Firebase FCM)
 
@@ -98,123 +98,131 @@ sequenceDiagram
         API->>DB: تحديث حالة service_requests إلى WEIGHED
         API->>DB: حساب النقاط المكتسبة: 14 كجم × 15 نقطة = 210 GP
         API->>DB: قيد محاسبي مزدوج: من SYSTEM_MINT إلى HOUSEHOLD_ACCOUNT
-        API->>DB: إدراج حدث PointsMintedEvent في outbox_messages
         API->>DB: COMMIT TRANSACTION (حفظ تام لا رجعة فيه)
+        
+        API->>Queue: إضافة مهمة إشعار إلى BullMQ: addJob('send-notification', { userId, points: 210 })
     end
     deactivate API
     
     API-->>WApp: 201 Created { netWeight: 14.0, pointsEarned: 210, status: "SUCCESS" }
     
-    Note over Outbox,WorkerQueue: معالجة الأحداث بشكل غير متزامن (Transactional Outbox)
-    WorkerQueue->>Outbox: استعلام عن الرسائل المعلقة (SELECT FOR UPDATE SKIP LOCKED)
+    Note over Queue,WorkerQueue: معالجة الإشعارات خلفياً عبر طوابير BullMQ
+    WorkerQueue->>Queue: سحب المهمة المستحقة (Process Job)
     WorkerQueue->>Push: إرسال إشعار فوري للمواطن (تم إيداع 210 نقطة خضراء لحسابك!)
     Push-->>Resident: ظهور الإشعار على هاتف المواطن مع رنين صوتي
-    WorkerQueue->>Outbox: تحديث حالة الرسالة إلى PUBLISHED
 ```
 
 ---
 
-## 3. شراء واستبدال قسائم المكافآت الرقمية (Store Voucher Generation & POS Redemption)
+## 3. شراء منتجات المتجر بالتحقق الثنائي والتدقيق المالي (Store Order & Two-Step Verification Flow)
 
-يوضح هذا المخطط كيفية استبدال النقاط المكتسبة بقسائم خصم رقمية لدى المتاجر والشركاء في حي المنصورة بنظام الحجز المعلق (Escrow).
+يوضح هذا المخطط دورة شراء واستبدال السلع البيئية عبر المتجر، ورفع إشعار التحويل البنكي، والتدقيق المالي والاعتماد من قبل موظفي الإدارة في لوحة التحكم (Back-Office Portal).
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Resident as المواطن المستفيد
-    actor Merchant as التاجر (نقطة البيع POS)
-    participant ResApp as تطبيق المواطن
-    participant MerchApp as بوابة التاجر (Merchant Portal)
+    actor Staff as موظف الإدارة والتدقيق المالي
+    participant ResApp as تطبيق المواطن / المتجر
+    participant AdminPortal as لوحة تحكم الإدارة (React Portal)
     participant API as خادم Fastify API
+    participant S3 as خادم تخزين المستندات (MinIO / S3)
     participant DB as قاعدة البيانات (PostgreSQL)
+    participant Queue as طوابير المهام (BullMQ)
 
-    Resident->>ResApp: تصفح المتجر واختيار قسيمة تسوق (500 نقطة)
-    ResApp->>API: POST /v1/store/orders { itemId, idempotencyKey }
+    Resident->>ResApp: تصفح المنتجات واختيار سلعة (نقاط + حوالة بنكية)
+    ResApp->>API: POST /v1/store/orders { productId, quantity, paymentMethod }
     
     activate API
     API->>DB: BEGIN TRANSACTION
-    API->>DB: قفل سجل المخزون: SELECT stock FROM store_items WHERE id = ? FOR UPDATE
-    alt نفاد المخزون
-        API-->>ResApp: 409 Conflict (السلعة نفدت من المخزون)
+    API->>DB: فحص وحجز المخزون: SELECT stock_quantity FROM store_products FOR UPDATE
+    alt المخزون غير كافٍ
+        API-->>ResApp: 409 Conflict (الكمية المطلوبة غير متوفرة)
     else المخزون متاح
-        API->>DB: فحص رصيد المواطن (balance >= 500)
-        alt الرصيد غير كافٍ
-            API-->>ResApp: 400 Bad Request (رصيد النقاط غير كافٍ)
-        else الرصيد كافٍ
-            API->>DB: تقليل المخزون بمقدار 1
-            API->>DB: قيد محاسبي: تحويل 500 GP من حساب المواطن إلى MERCHANT_ESCROW
-            API->>DB: توليد كود قسيمة فريد مشفر بصيغة QR Code
-            API->>DB: إنشاء سجل في store_orders بحالة VOUCHER_GENERATED
-            API->>DB: COMMIT TRANSACTION
-            API-->>ResApp: 201 Created { voucherCode, qrData, expiresAt }
-        end
+        API->>DB: خصم الكمية من المخزون
+        API->>DB: خصم النقاط الخضراء بالقيد المزدوج (إن كان الدفع بالنقاط)
+        API->>DB: إنشاء سجل الطلب بحالة PENDING_VERIFICATION
+        API->>DB: COMMIT TRANSACTION
+        API-->>ResApp: 201 Created { orderId, orderNumber, status: "PENDING_VERIFICATION" }
     end
     deactivate API
-    
-    Note over Resident,Merchant: المواطن يتوجه إلى متجر الشريك في المنصورة
-    Resident->>Merchant: إبراز رمز الاستجابة السريعة (QR Code) على الهاتف
-    Merchant->>MerchApp: مسح الرمز بواسطة كاميرا جهاز الـ POS
-    MerchApp->>API: POST /v1/merchant/vouchers/redeem { voucherCode }
+
+    Note over Resident,ResApp: الخطوة الثانية: رفع إشعار وسند التحويل المالي
+    Resident->>ResApp: رفع صورة إشعار الحوالة البنكية وإدخال رقم الحوالة
+    ResApp->>API: POST /v1/store/orders/:id/upload-receipt (Multipart Form)
+    API->>S3: حفظ صورة الإشعار في مجلد receipts المشفر
+    S3-->>API: رابط الصورة المستقر (proof_image_url)
+    API->>DB: UPDATE store_orders SET proof_image_url = ?, transfer_reference = ?
+    API-->>ResApp: 200 OK { message: "Receipt uploaded successfully" }
+
+    Note over Staff,AdminPortal: مراجعة واعتماد الطلب من قبل الإدارة
+    Staff->>AdminPortal: فتح شاشة «تدقيق طلبات المتجر والحوالات المعلقة»
+    AdminPortal->>API: GET /v1/admin/store/orders?status=PENDING_VERIFICATION
+    API->>DB: استعلام الطلبات المعلقة مع بيانات المشتري وصورة الإشعار
+    DB-->>API: قائمة الطلبات
+    API-->>AdminPortal: عرض الطلبات وسندات الدفع للمدقق المالي
+
+    Staff->>AdminPortal: مطابقة رقم الحوالة في الحساب البنكي والضغط على «اعتماد»
+    AdminPortal->>API: PATCH /v1/admin/store/orders/:id/verify { action: "APPROVE" }
     
     activate API
-    API->>DB: BEGIN TRANSACTION
-    API->>DB: استعلام القسيمة مع القفل: SELECT * FROM store_orders FOR UPDATE
-    alt القسيمة مستخدمة سابقاً أو منتهية
-        API-->>MerchApp: 422 Unprocessable (القسيمة غير صالحة أو مستخدمة)
-    else القسيمة صالحة
-        API->>DB: تحديث حالة القسيمة إلى REDEEMED وتوثيق وقت الصرف
-        API->>DB: تسوية الحساب: تحويل 500 GP من حساب الحجز المؤقت ESCROW إلى حساب التاجر المستحق
-        API->>DB: COMMIT TRANSACTION
-        API-->>MerchApp: 200 OK { status: "REDEEMED_SUCCESSFULLY", merchantCreditYer: 2500 }
-    end
+    API->>DB: UPDATE store_orders SET status = 'VERIFIED_PAID', verified_by_staff_id = ?, verified_at = NOW()
+    API->>DB: INSERT INTO audit_logs (actor_id, action: 'STORE_ORDER_VERIFIED', entity_id)
+    API->>Queue: إضافة مهمة إشعار وتجهيز الطلب (OrderApprovedJob)
+    API-->>AdminPortal: 200 OK { status: "VERIFIED_PAID" }
     deactivate API
-    
-    MerchApp-->>Merchant: تأكيد شاشة الكاشير بالخصم الفوري للسلعة
-    Merchant-->>Resident: تسليم المواد الغذائية / السلع للمواطن
+
+    Queue-->>ResApp: إشعار للمواطن: "تم اعتماد طلبك وجارٍ تجهيز الشحنة للتسليم!"
 ```
 
 ---
 
-## 4. مشغل صندوق الصادر وضمان تسليم الإشعارات (Transactional Outbox Dispatcher Worker)
+## 4. مزامنة الدفعات الميدانية غير المتصلة وطوابير المعالجة الخلفية (Field Batch Sync & Background Queue Workers)
 
-يوضح هذا المخطط الآلية المعمارية التي تضمن وصول الرسائل والإشعارات الميدانية دون أي احتمالية لفقدان البيانات حتى لو انقطعت شبكة الإنترنت أو تعطل مزود الرسائل الخارجي.
+يوضح هذا المخطط الآلية المعمارية المعتمدة لمعالجة البيانات عند انقطاع التغطية الميدانية في مناطق عدن، حيث يحفظ التطبيق الميداني العمليات محلياً (SQLite)، ثم يقوم بالمزامنة الدفيعية فور توفر الشبكة لتعالجها طوابير BullMQ دون تحميل خادم الـ API أي بطء.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Fastify as خادم Fastify (API Context)
-    participant OutboxTable as جدول outbox_messages (Postgres)
-    participant CronWorker as المعالج الخلفي (BullMQ Outbox Worker)
-    participant ExternalAPI as مزود الخدمة الخارجي (FCM / SMS Gateway)
-    participant DLQ as طابور الرسائل الميتة (Dead-Letter Queue)
+    actor Worker as جامع النفايات الميداني
+    participant WApp as تطبيق العامل (مخزن SQLite محلي)
+    participant Fastify as خادم Fastify (API Gateway)
+    participant RedisQueue as طوابير المهام (BullMQ / Redis)
+    participant BackgroundWorker as معالج الطوابير (BullMQ Background Worker)
+    participant DB as قاعدة البيانات (PostgreSQL)
 
-    Note over Fastify,OutboxTable: عملية أعمال تمت بنجاح داخل معاملة ACID
-    Fastify->>OutboxTable: INSERT INTO outbox_messages (event_type, payload, status: 'PENDING')
+    Note over Worker,WApp: العمل بدون اتصال (Offline Mode) في أحياء المنصورة
+    Worker->>WApp: إتمام عمليات وزن متعددة أثناء انقطاع شبكة الهاتف
+    WApp->>WApp: حفظ السجلات محلياً في SQLite مع توقيع البلوتوث المالي
+
+    Note over WApp,Fastify: استعادة الاتصال بالإنترنت
+    WApp->>Fastify: POST /v1/collection/batch-sync { batchReference, recordsCount, records: [...] }
     
-    loop كل ثانية واحدة (Polling with Backoff)
-        CronWorker->>OutboxTable: SELECT * FROM outbox_messages WHERE status = 'PENDING' ORDER BY scheduled_at LIMIT 50 FOR UPDATE SKIP LOCKED
-        OutboxTable-->>CronWorker: قائمة بالرسائل المستحقة للإرسال
-        
-        loop لكل رسالة في الحزمة
-            CronWorker->>OutboxTable: UPDATE outbox_messages SET status = 'PROCESSING'
-            CronWorker->>ExternalAPI: إرسال الطلب عبر شبكة الإنترنت (HTTPS POST)
-            
-            alt نجاح الإرسال (HTTP 200 OK)
-                CronWorker->>OutboxTable: UPDATE outbox_messages SET status = 'PUBLISHED', published_at = NOW()
-            else فشل مؤقت في الشبكة (Timeout / HTTP 503)
-                alt عدد المحاولات أقل من 5
-                    CronWorker->>OutboxTable: UPDATE outbox_messages SET status = 'PENDING', retry_count = retry_count + 1, scheduled_at = NOW() + (2 ^ retry_count * 5s)
-                else استنفاد الحد الأقصى للمحاولات (5 محاولات)
-                    CronWorker->>OutboxTable: UPDATE outbox_messages SET status = 'FAILED', last_error = 'Max retries exhausted'
-                    CronWorker->>DLQ: نقل الرسالة لطابور التدخل اليدوي DLQ
-                    CronWorker->>CronWorker: إطلاق تنبيه في Pino Logger بمستوى ERROR
-                end
-            end
-        end
+    activate Fastify
+    Fastify->>DB: تسجيل الدفعة في field_batch_imports بحالة RECEIVED
+    Fastify->>RedisQueue: إضافة الدفعة إلى طابور BullMQ: queue.add('process-field-batch', { batchId })
+    Fastify-->>WApp: 202 Accepted { batchReference, status: "QUEUED_FOR_PROCESSING" }
+    deactivate Fastify
+    
+    WApp->>WApp: تحديث حالة السجلات المحلية إلى SYNC_PENDING_CONFIRMATION
+
+    Note over RedisQueue,BackgroundWorker: المعالجة غير المتزامنة خلف الكواليس
+    BackgroundWorker->>RedisQueue: سحب مهمة الدفعة الميدانية
+    BackgroundWorker->>DB: UPDATE field_batch_imports SET status = 'PROCESSING'
+    
+    loop لكل عملية وزن داخل الدفعة
+        BackgroundWorker->>DB: BEGIN TRANSACTION
+        BackgroundWorker->>DB: التحقق من عدم التكرار (Idempotency Key Check)
+        BackgroundWorker->>DB: إدراج سجل collection_weighings
+        BackgroundWorker->>DB: حساب ونقل النقاط الخضراء في green_points_ledger
+        BackgroundWorker->>DB: COMMIT TRANSACTION
     end
+    
+    BackgroundWorker->>DB: UPDATE field_batch_imports SET status = 'COMPLETED', error_summary = NULL
+    BackgroundWorker->>RedisQueue: جدولة إشعارات المستفيدين في طابور الإشعارات (Push Notifications Queue)
 ```
 
 ### مزايا هذا النمط:
-1. **استقلالية الـ API:** لا ينتظر خادم الـ API استجابة مزود الرسائل الخارجي، مما يجعل وقت الاستجابة للمستخدمين أقل من 40 ميلي ثانية.
-2. **منع الإرسال الوهمي:** لا تُرسل أي رسالة إشعار إطلاقاً إذا فشلت المعاملة المالية في قاعدة البيانات، لأن حفظ الرسالة في الصندوق جزء من نفس المعاملة المصرفية التلقائية.
-3. **تجنب التنافس (SKIP LOCKED):** يمكن تشغيل 10 نسخ من الـ Workers بالتوازي دون أن تعالج نسختان نفس الرسالة في نفس الوقت.
+1. **استجابة فورية فائقة السرعة (Under 30ms):** يرد الخادم برمز `202 Accepted` مباشرة دون حظر تطبيق العامل أثناء تفريغ مئات الأوزان.
+2. **عزل الأعطال:** إذا تعطلت معالجة قيد محاسبي لأحد الأوزان، تُعزل السجلات الفاشلة وتُسجل في `error_summary` دون إفشال باقي عمليات الدفعة.
+3. **مرونة التوسع (Horizontal Scalability):** يمكن تشغيل عدة حاويات من `BullMQ Background Worker` لمعالجة دفعات عشرات الشاحنات المتزامنة دون المساس بسرعة تصفح المواطنين للنظام.

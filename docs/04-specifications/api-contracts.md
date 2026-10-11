@@ -187,6 +187,34 @@
   }
   ```
 
+### `POST /v1/worker/collection/batch-sync`
+مزامنة وتفريغ الدفعات الميدانية المسجلة أثناء انقطاع الاتصال (Offline Sync).
+* **جسم الطلب:**
+  ```json
+  {
+    "batchReference": "BATCH-MNSR-20261011-04",
+    "recordsCount": 15,
+    "records": [
+      {
+        "requestId": "018f25b8-5001-7000-8000-000000000001",
+        "categoryId": "018f25b5-4421-7000-a111-987654321def",
+        "grossWeightKg": 14.250,
+        "tareWeightKg": 0.250,
+        "scaleDeviceId": "BLE-SCALE-MNSR-08",
+        "offlineRecordedAt": "2026-10-11T03:15:00Z"
+      }
+    ]
+  }
+  ```
+* **الاستجابة الناجحة (202 Accepted):**
+  ```json
+  {
+    "batchReference": "BATCH-MNSR-20261011-04",
+    "status": "QUEUED_FOR_PROCESSING",
+    "message": "تم استلام الدفعة الميدانية وجارٍ معالجتها خلفياً عبر BullMQ"
+  }
+  ```
+
 ---
 
 ## 5. واجهات لوحة التحكم الإدارية (Back-Office Admin Endpoints)
@@ -236,27 +264,62 @@
 
 ---
 
-## 6. واجهات الشركاء ونقاط البيع (Merchant POS Endpoints)
+## 6. واجهات المتجر الرقمي والتحقق الثنائي (Store & Two-Step Verification Endpoints)
 
-### `POST /v1/merchant/vouchers/redeem`
-اعتماد وصرف قسيمة مشتريات للمواطن عبر مسح الـ QR Code.
-* **الأدوار المصرح لها:** `MERCHANT`
+### `POST /v1/store/orders`
+إنشاء طلب شراء لسلعة أو منتج بيئي من المتجر.
 * **جسم الطلب:**
   ```json
   {
-    "voucherCode": "ATHAR-VCH-8921-9920",
-    "terminalId": "POS-SUPERMARKET-03"
+    "productId": "018f25c5-3333-7000-8000-444455556666",
+    "quantity": 1,
+    "paymentMethod": "BANK_TRANSFER"
+  }
+  ```
+* **الاستجابة الناجحة (201 Created):**
+  ```json
+  {
+    "orderId": "018f25c8-7777-7000-8000-888899990000",
+    "orderNumber": "ORD-2026-0042",
+    "status": "PENDING_VERIFICATION",
+    "cashAmountYer": 15000,
+    "pointsSpent": 0,
+    "message": "تم إنشاء الطلب بنجاح، يرجى رفع صورة إشعار الحوالة البنكية للاعتماد"
+  }
+  ```
+
+### `POST /v1/store/orders/:id/upload-receipt`
+رفع صورة إشعار الحوالة البنكية / سند الدفع المالي (Multipart Form).
+* **الترويسة:** `Content-Type: multipart/form-data`
+* **الحقول:**
+  * `receiptImage`: ملف الصورة (JPG/PNG/PDF)
+  * `transferReference`: "TRX-9988112"
+* **الاستجابة الناجحة (200 OK):**
+  ```json
+  {
+    "orderId": "018f25c8-7777-7000-8000-888899990000",
+    "status": "PENDING_VERIFICATION",
+    "proofImageUrl": "https://storage.athar.ye/receipts/ord-0042-proof.jpg",
+    "message": "تم رفع إشعار السداد بنجاح وجارٍ مراجعته من موظف التدقيق المالي"
+  }
+  ```
+
+### `PATCH /v1/admin/store/orders/:id/verify`
+اعتماد أو رفض الطلب وسند السداد من قبل موظف الإدارة في لوحة التحكم (Back-Office Portal).
+* **الأدوار المصرح لها:** `SUPER_ADMIN`, `ADMIN_ACCOUNTANT`, `ADMIN_SUPERVISOR`
+* **جسم الطلب:**
+  ```json
+  {
+    "action": "APPROVE",
+    "notes": "تمت مطابقة رقم الحوالة في الحساب البنكي الرسمي لبنك الكريمي"
   }
   ```
 * **الاستجابة الناجحة (200 OK):**
   ```json
   {
-    "status": "REDEEMED_SUCCESSFULLY",
-    "voucherDetails": {
-      "itemTitle": "سلة تموينية أساسية (أرز + سكر + زيت)",
-      "pointsDeducted": 500,
-      "settlementCreditYer": 25000,
-      "redeemedAt": "2026-10-11T04:47:00Z"
-    }
+    "orderId": "018f25c8-7777-7000-8000-888899990000",
+    "status": "VERIFIED_PAID",
+    "verifiedBy": "موظف التدقيق المالي",
+    "verifiedAt": "2026-10-11T04:48:00Z"
   }
   ```

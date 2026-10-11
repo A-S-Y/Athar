@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1202.250416666667 781.6999999999999" width="1202.250416666667" height="781.6999999999999" style="--bg:#FFFFFF;--fg:#3B3B3B;--line:#3B3B3B;--accent:#005FB8;--muted:#3B3B3BCC;--surface:#F8F8F8;--border:#3B3B3B;background:var(--bg)">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 85%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="arrowhead" markerWidth="8" markerHeight="5" refX="7" refY="2.5" orient="auto">
+    <polygon points="0 0, 8 2.5, 0 5" fill="var(--_arrow)" stroke="var(--_arrow)" stroke-width="0.75" stroke-linejoin="round" />
+  </marker>
+  <marker id="arrowhead-start" markerWidth="8" markerHeight="5" refX="1" refY="2.5" orient="auto-start-reverse">
+    <polygon points="8 0, 0 2.5, 8 5" fill="var(--_arrow)" stroke="var(--_arrow)" stroke-width="0.75" stroke-linejoin="round" />
+  </marker>
+</defs>
+<polyline class="edge" data-from="_start" data-to="SUBMITTED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="إنشاء الطلب من تطبيق المواطن" points="164.2039583333334,201.65 164.2039583333334,310.40000000000003 245.62341666666669,310.40000000000003 245.62341666666669,322.40000000000003" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="SUBMITTED" data-to="DISPATCHED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="توجيه الطلب إلى عامل أو دراجة جمع" points="265.3355833333334,359.3 265.3355833333334,395.30000000000007 263.04533333333336,395.30000000000007 263.04533333333336,463.6000000000001 389.20191666666676,463.6000000000001 389.20191666666676,475.6000000000001" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="SUBMITTED" data-to="REJECTED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="رفض الطلب (خارج النطاق الجغرافي)" points="294.9038333333334,359.3 294.9038333333334,395.30000000000007 454.26733333333345,395.30000000000007 454.26733333333345,463.6000000000001 559.3079166666669,463.6000000000001 559.3079166666669,475.6000000000001" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="SUBMITTED" data-to="CANCELLED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="إلغاء الطلب من قِبل المواطن" points="235.76733333333345,359.3 235.76733333333345,395.30000000000007 117,395.30000000000007 117,616.8 306.2614166666667,616.8 306.2614166666667,628.8" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="DISPATCHED" data-to="IN_PROGRESS" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="استلام العامل للمهمة والتحرك للموقع" points="430.8492500000001,475.6000000000001 430.8492500000001,451.6000000000001 557.0058333333335,451.6000000000001 557.0058333333335,351.00000000000006 577.8965000000001,351.00000000000006 577.8965000000001,76.9" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="DISPATCHED" data-to="CANCELLED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="إلغاء من الإدارة لظرف طارئ" points="410.02558333333343,512.5 410.02558333333343,616.8 346.9207500000001,616.8 346.9207500000001,628.8" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="IN_PROGRESS" data-to="WEIGHED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="إتمام عملية الوزن بالميزان الذكي" points="610.9845000000001,76.9 610.9845000000001,88.9 938.5331666666668,88.9 938.5331666666668,173.65" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="IN_PROGRESS" data-to="FAILED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="تعذر الوصول للعنوان أو عدم الرد" points="544.8085000000001,76.9 544.8085000000001,88.9 331.54195833333335,88.9 331.54195833333335,173.65" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="WEIGHED" data-to="COMPLETED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="مطابقة الأوزان وصرف النقاط بنجاح" points="955.2813333333336,210.55000000000004 955.2813333333336,363.00000000000006 1071.152416666667,363.00000000000006 1071.152416666667,463.6000000000001 1056.1025000000002,463.6000000000001 1056.1025000000002,475.6000000000001" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="WEIGHED" data-to="DISPUTED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="اعتراض المواطن أو رصد شذوذ وزني آلي" points="921.7850000000002,210.55000000000004 921.7850000000002,242.10000000000002 851.7436666666669,242.10000000000002 851.7436666666669,322.40000000000003" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="DISPUTED" data-to="COMPLETED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="تسوية النزاع واعتماد وزن معدل من المشرف" points="869.6033333333336,359.3 869.6033333333336,395.30000000000007 934.3617500000003,395.30000000000007 934.3617500000003,463.6000000000001 1014.7021666666669,463.6000000000001 1014.7021666666669,475.6000000000001" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="DISPUTED" data-to="REJECTED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="إلغاء الوزن بالكامل وإغلاق الطلب" points="833.8840000000002,359.3 833.8840000000002,395.30000000000007 722.7637500000002,395.30000000000007 722.7637500000002,463.6000000000001 597.0032500000002,463.6000000000001 597.0032500000002,475.6000000000001" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="FAILED" data-to="SUBMITTED" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="إعادة الجدولة لوردية قادمة" points="331.54195833333335,210.55000000000004 331.54195833333335,310.40000000000003 285.04775000000006,310.40000000000003 285.04775000000006,322.40000000000003" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="COMPLETED" data-to="_end" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="1035.4023333333337,512.5 1035.4023333333337,560.5" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="REJECTED" data-to="_end2" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="578.1555833333334,512.5 578.1555833333334,560.5" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="CANCELLED" data-to="_end3" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="326.5910833333335,665.6999999999999 326.59108333333336,713.6999999999999" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<g class="edge-label" data-from="_start" data-to="SUBMITTED" data-label="إنشاء الطلب من تطبيق المواطن">
+  <rect x="80.2039583333334" y="249.1" width="167.33800000000005" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="163.87295833333343" y="264.25" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">إنشاء الطلب من تطبيق المواطن</text>
+</g>
+<g class="edge-label" data-from="SUBMITTED" data-to="DISPATCHED" data-label="توجيه الطلب إلى عامل أو دراجة جمع">
+  <rect x="168.54533333333336" y="402.30000000000007" width="188.72200000000007" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="262.9063333333334" y="417.45000000000005" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">توجيه الطلب إلى عامل أو دراجة جمع</text>
+</g>
+<g class="edge-label" data-from="SUBMITTED" data-to="REJECTED" data-label="رفض الطلب (خارج النطاق الجغرافي)">
+  <rect x="361.26733333333345" y="402.30000000000007" width="185.15800000000004" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="453.84633333333346" y="417.45000000000005" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">رفض الطلب (خارج النطاق الجغرافي)</text>
+</g>
+<g class="edge-label" data-from="SUBMITTED" data-to="CANCELLED" data-label="إلغاء الطلب من قِبل المواطن">
+  <rect x="36" y="579.5" width="161.39800000000005" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="116.69900000000003" y="594.65" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">إلغاء الطلب من قِبل المواطن</text>
+</g>
+<g class="edge-label" data-from="DISPATCHED" data-to="IN_PROGRESS" data-label="استلام العامل للمهمة والتحرك للموقع">
+  <rect x="452.50583333333356" y="358.00000000000006" width="208.91800000000003" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="556.9648333333336" y="373.15000000000003" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">استلام العامل للمهمة والتحرك للموقع</text>
+</g>
+<g class="edge-label" data-from="DISPATCHED" data-to="CANCELLED" data-label="إلغاء من الإدارة لظرف طارئ">
+  <rect x="332.02558333333343" y="555.5" width="155.458" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="409.7545833333334" y="570.65" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">إلغاء من الإدارة لظرف طارئ</text>
+</g>
+<g class="edge-label" data-from="IN_PROGRESS" data-to="WEIGHED" data-label="إتمام عملية الوزن بالميزان الذكي">
+  <rect x="842.5331666666668" y="95.9" width="191.09800000000004" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="938.0821666666668" y="111.05000000000001" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">إتمام عملية الوزن بالميزان الذكي</text>
+</g>
+<g class="edge-label" data-from="IN_PROGRESS" data-to="FAILED" data-label="تعذر الوصول للعنوان أو عدم الرد">
+  <rect x="240.54195833333333" y="95.9" width="181.00000000000006" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="331.04195833333335" y="111.05000000000001" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">تعذر الوصول للعنوان أو عدم الرد</text>
+</g>
+<g class="edge-label" data-from="WEIGHED" data-to="COMPLETED" data-label="مطابقة الأوزان وصرف النقاط بنجاح">
+  <rect x="975.152416666667" y="370.00000000000006" width="191.09800000000004" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="1070.701416666667" y="385.15000000000003" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">مطابقة الأوزان وصرف النقاط بنجاح</text>
+</g>
+<g class="edge-label" data-from="WEIGHED" data-to="DISPUTED" data-label="اعتراض المواطن أو رصد شذوذ وزني آلي">
+  <rect x="751.2436666666669" y="249.1" width="200.60200000000006" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="851.5446666666669" y="264.25" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">اعتراض المواطن أو رصد شذوذ وزني آلي</text>
+</g>
+<g class="edge-label" data-from="DISPUTED" data-to="COMPLETED" data-label="تسوية النزاع واعتماد وزن معدل من المشرف">
+  <rect x="821.8617500000003" y="402.30000000000007" width="224.36200000000005" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="934.0427500000003" y="417.45000000000005" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">تسوية النزاع واعتماد وزن معدل من المشرف</text>
+</g>
+<g class="edge-label" data-from="DISPUTED" data-to="REJECTED" data-label="إلغاء الوزن بالكامل وإغلاق الطلب">
+  <rect x="626.7637500000002" y="402.30000000000007" width="191.09800000000004" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="722.3127500000002" y="417.45000000000005" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">إلغاء الوزن بالكامل وإغلاق الطلب</text>
+</g>
+<g class="edge-label" data-from="FAILED" data-to="SUBMITTED" data-label="إعادة الجدولة لوردية قادمة">
+  <rect x="251.54195833333333" y="249.1" width="159.61600000000004" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="331.34995833333335" y="264.25" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">إعادة الجدولة لوردية قادمة</text>
+</g>
+<g class="node" data-id="_start" data-label="" data-shape="state-start">
+  <circle cx="164.2039583333334" cy="187.65" r="12" fill="var(--_text)" stroke="none" />
+</g>
+<g class="node" data-id="SUBMITTED" data-label="SUBMITTED" data-shape="rounded">
+  <rect x="206.19908333333342" y="322.40000000000003" width="118.27299999999998" height="36.900000000000006" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="265.33558333333343" y="340.85" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">SUBMITTED</text>
+</g>
+<g class="node" data-id="DISPATCHED" data-label="DISPATCHED" data-shape="rounded">
+  <rect x="347.5545833333334" y="475.6000000000001" width="124.942" height="36.900000000000006" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="410.02558333333343" y="494.05000000000007" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">DISPATCHED</text>
+</g>
+<g class="node" data-id="REJECTED" data-label="REJECTED" data-shape="rounded">
+  <rect x="521.6125833333335" y="475.6000000000001" width="113.086" height="36.900000000000006" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="578.1555833333335" y="494.05000000000007" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">REJECTED</text>
+</g>
+<g class="node" data-id="CANCELLED" data-label="CANCELLED" data-shape="rounded">
+  <rect x="265.60208333333344" y="628.8" width="121.97799999999998" height="36.900000000000006" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="326.5910833333334" y="647.25" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">CANCELLED</text>
+</g>
+<g class="node" data-id="IN_PROGRESS" data-label="IN_PROGRESS" data-shape="rounded">
+  <rect x="511.72050000000013" y="40" width="132.35199999999998" height="36.900000000000006" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="577.8965000000001" y="58.45" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">IN_PROGRESS</text>
+</g>
+<g class="node" data-id="WEIGHED" data-label="WEIGHED" data-shape="rounded">
+  <rect x="888.2886666666668" y="173.65" width="100.489" height="36.900000000000006" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="938.5331666666668" y="192.10000000000002" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">WEIGHED</text>
+</g>
+<g class="node" data-id="FAILED" data-label="FAILED" data-shape="rounded">
+  <rect x="286.85495833333334" y="173.65" width="89.374" height="36.900000000000006" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="331.54195833333335" y="192.10000000000002" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">FAILED</text>
+</g>
+<g class="node" data-id="COMPLETED" data-label="COMPLETED" data-shape="rounded">
+  <rect x="973.3018333333337" y="475.6000000000001" width="124.20099999999998" height="36.900000000000006" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="1035.4023333333337" y="494.05000000000007" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">COMPLETED</text>
+</g>
+<g class="node" data-id="DISPUTED" data-label="DISPUTED" data-shape="rounded">
+  <rect x="798.1646666666669" y="322.40000000000003" width="107.158" height="36.900000000000006" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="851.7436666666669" y="340.85" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">DISPUTED</text>
+</g>
+<g class="node" data-id="_end" data-label="" data-shape="state-end">
+  <circle cx="1035.4023333333334" cy="574.5" r="12" fill="none" stroke="var(--_text)" stroke-width="1.5" />
+  <circle cx="1035.4023333333334" cy="574.5" r="8" fill="var(--_text)" stroke="none" />
+</g>
+<g class="node" data-id="_end2" data-label="" data-shape="state-end">
+  <circle cx="578.1555833333334" cy="574.5" r="12" fill="none" stroke="var(--_text)" stroke-width="1.5" />
+  <circle cx="578.1555833333334" cy="574.5" r="8" fill="var(--_text)" stroke="none" />
+</g>
+<g class="node" data-id="_end3" data-label="" data-shape="state-end">
+  <circle cx="326.59108333333336" cy="727.6999999999999" r="12" fill="none" stroke="var(--_text)" stroke-width="1.5" />
+  <circle cx="326.59108333333336" cy="727.6999999999999" r="8" fill="var(--_text)" stroke="none" />
+</g>
+</svg>

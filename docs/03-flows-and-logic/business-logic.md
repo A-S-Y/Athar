@@ -107,16 +107,14 @@ $$\Delta P = \lfloor W_{\text{net}} \times R_{\text{category}} \rfloor$$
 * **الطرف الدائن (Source Account):** `SYSTEM_MINT_ACCOUNT` ($\Delta P -$)
 * **الطرف المدين (Destination Account):** `HOUSEHOLD_ACCOUNT` ($\Delta P +$)
 
-### 4.2 معادلة شراء قسيمة المتجر (Voucher Issuance):
-* **الطرف الدائن:** `HOUSEHOLD_ACCOUNT` ($P_{\text{spent}} -$)
-* **الطرف المدين:** `MERCHANT_ESCROW_ACCOUNT` ($P_{\text{spent}} +$)
+### 4.2 معادلة استبدال وشراء منتجات المتجر بالنقاط (Store Product Redemption):
+عند استبدال المواطن لنقاطه مقابل منتجات وسلع صديقة للبيئة من المتجر بتكلفة $P_{\text{spent}}$:
+* **الطرف الدائن (Source Account):** `HOUSEHOLD_ACCOUNT` ($P_{\text{spent}} -$)
+* **الطرف المدين (Destination Account):** `SYSTEM_BURN_ACCOUNT` ($P_{\text{spent}} +$)
 
-### 4.3 معادلة استبدال القسيمة وصرف المستحقات (Merchant Settlement):
-* **الطرف الدائن:** `MERCHANT_ESCROW_ACCOUNT` ($P_{\text{redeemed}} -$)
-* **الطرف المدين:** `MERCHANT_PAYABLE_ACCOUNT` ($P_{\text{redeemed}} +$)
-* **المستحق النقدي للتاجر (بالريال اليمني YER):**
-$$\text{Amount (YER)} = P_{\text{redeemed}} \times \text{Settlement Rate}$$
-
-### 4.4 معادلة إعدام النقاط المنتهية (Voucher Expiry / Point Burn):
-إذا لم تُستخدم القسيمة خلال 30 يوماً:
-* **إعادة القيد:** عكس العملية من `MERCHANT_ESCROW_ACCOUNT` إلى `HOUSEHOLD_ACCOUNT` دون ضياع حق المواطن.
+### 4.3 معادلة إلغاء الطلب واسترداد النقاط (Order Cancellation & Points Rollback):
+في حال رفض الإشعار المالي أو إلغاء الطلب قبل التجهيز:
+* **قيد الاسترداد العكسي المتوازن:**
+  * **الطرف الدائن (Source Account):** `SYSTEM_BURN_ACCOUNT` ($P_{\text{spent}} -$)
+  * **الطرف المدين (Destination Account):** `HOUSEHOLD_ACCOUNT` ($P_{\text{spent}} +$)
+* يعود رصيد المواطن فوراً كما كان دون أي نقص، ويوثق ذلك في `green_points_ledger` ببيان `ORDER_CANCELLED_REFUND`.

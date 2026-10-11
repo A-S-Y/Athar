@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 907.5419166666665 1435.595" width="907.5419166666665" height="1435.595" style="--bg:#FFFFFF;--fg:#3B3B3B;--line:#3B3B3B;--accent:#005FB8;--muted:#3B3B3BCC;--surface:#F8F8F8;--border:#3B3B3B;background:var(--bg)">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 85%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="arrowhead" markerWidth="8" markerHeight="5" refX="7" refY="2.5" orient="auto">
+    <polygon points="0 0, 8 2.5, 0 5" fill="var(--_arrow)" stroke="var(--_arrow)" stroke-width="0.75" stroke-linejoin="round" />
+  </marker>
+  <marker id="arrowhead-start" markerWidth="8" markerHeight="5" refX="1" refY="2.5" orient="auto-start-reverse">
+    <polygon points="8 0, 0 2.5, 8 5" fill="var(--_arrow)" stroke="var(--_arrow)" stroke-width="0.75" stroke-linejoin="round" />
+  </marker>
+</defs>
+<polyline class="edge" data-from="WeightInput" data-to="CheckZero" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="297.94449999999995,76.9 297.94449999999995,124.9" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="CheckZero" data-to="RejectZero" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="لا (وزن غير صالح)" points="265.34033333333326,287.9208333333333 265.34033333333326,679.88 153.97049999999996,679.88 153.97049999999996,760.18" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="CheckZero" data-to="CheckAbsolute" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="نعم" points="330.5486666666666,287.92083333333335 330.5486666666666,332.525 441.9184999999999,332.525 441.9184999999999,412.82500000000005" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="CheckAbsolute" data-to="FlagAnomaly" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="نعم (تجاوز السقف)" points="393.25933333333325,656.1208333333334 393.25933333333325,809.0799999999999 273.4039166666666,809.0799999999999 273.4039166666666,1261.7949999999998 255.98874999999992,1261.7949999999998 255.98874999999992,1273.7949999999998" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="CheckAbsolute" data-to="CheckHouseholdBaseline" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="لا" points="490.5776666666666,656.1208333333333 490.5776666666666,740.78 563.9592499999999,740.78 563.9592499999999,821.0799999999999" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="CheckHouseholdBaseline" data-to="FlagAnomaly" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="نعم (قفزة شاذة)" points="507.8900833333332,1101.4258333333332 507.8900833333332,1193.495 394.16008333333326,1193.495 394.16008333333326,1261.7949999999998 344.31908333333325,1261.7949999999998 344.31908333333325,1273.7949999999998" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="CheckHouseholdBaseline" data-to="Approve" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="لا (وزن طبيعي)" points="620.0284166666665,1101.4258333333332 620.0284166666665,1193.495 683.9174166666666,1193.495 683.9174166666664,1273.7949999999998" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="FlagAnomaly" data-to="HoldState" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="300.1539166666666,1310.695 300.15391666666665,1358.695" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="Approve" data-to="MintLedger" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="683.9174166666664,1310.695 683.9174166666664,1358.695" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<g class="edge-label" data-from="CheckZero" data-to="RejectZero" data-label="لا (وزن غير صالح)">
+  <rect x="103.47049999999996" y="686.88" width="100.21600000000001" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="153.57849999999996" y="702.03" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">لا (وزن غير صالح)</text>
+</g>
+<g class="edge-label" data-from="CheckZero" data-to="CheckAbsolute" data-label="نعم">
+  <rect x="423.9184999999999" y="339.525" width="35.47" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="441.6534999999999" y="354.67499999999995" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">نعم</text>
+</g>
+<g class="edge-label" data-from="CheckAbsolute" data-to="FlagAnomaly" data-label="نعم (تجاوز السقف)">
+  <rect x="220.9039166666666" y="1200.495" width="104.37400000000002" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="273.0909166666666" y="1215.645" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">نعم (تجاوز السقف)</text>
+</g>
+<g class="edge-label" data-from="CheckAbsolute" data-to="CheckHouseholdBaseline" data-label="لا">
+  <rect x="548.9592499999999" y="747.78" width="29.53" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="563.7242499999999" y="762.93" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">لا</text>
+</g>
+<g class="edge-label" data-from="CheckHouseholdBaseline" data-to="FlagAnomaly" data-label="نعم (قفزة شاذة)">
+  <rect x="347.66008333333326" y="1200.495" width="92.49400000000001" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="393.9070833333333" y="1215.645" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">نعم (قفزة شاذة)</text>
+</g>
+<g class="edge-label" data-from="CheckHouseholdBaseline" data-to="Approve" data-label="لا (وزن طبيعي)">
+  <rect x="640.4174166666666" y="1200.495" width="86.554" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="683.6944166666666" y="1215.645" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">لا (وزن طبيعي)</text>
+</g>
+<g class="node" data-id="WeightInput" data-label="قراءة الميزان الميداني: Net Weight (kg)" data-shape="stadium">
+  <rect x="155.44549999999995" y="40" width="284.99799999999993" height="36.900000000000006" rx="18.450000000000003" ry="18.450000000000003" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="297.94449999999995" y="58.45" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">قراءة الميزان الميداني: Net Weight (kg)</text>
+</g>
+<g class="node" data-id="CheckZero" data-label="هل الوزن الصافي &gt; 0 ؟" data-shape="diamond">
+  <polygon points="297.94449999999995,124.9 395.75699999999995,222.7125 297.94449999999995,320.525 200.13199999999995,222.7125" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="297.94449999999995" y="222.7125" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">هل الوزن الصافي &gt; 0 ؟</text>
+</g>
+<g class="node" data-id="RejectZero" data-label="رفض العملية: 422 Invalid Weight" data-shape="stadium">
+  <rect x="40" y="760.18" width="227.94099999999995" height="36.900000000000006" rx="18.450000000000003" ry="18.450000000000003" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="153.97049999999996" y="778.63" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">رفض العملية: 422 Invalid Weight</text>
+</g>
+<g class="node" data-id="CheckAbsolute" data-label="هل الوزن يتجاوز سقف الخامة الأقصى؟
+(مثال: بلاستيك &gt; 50 كجم للمنزل)" data-shape="diamond">
+  <polygon points="441.9184999999999,412.82500000000005 587.8959999999998,558.8025 441.9184999999999,704.78 295.9409999999999,558.8025" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="441.9184999999999" y="558.8025" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)"><tspan x="441.9184999999999" dy="-3.9000000000000012">هل الوزن يتجاوز سقف الخامة الأقصى؟</tspan><tspan x="441.9184999999999" dy="16.900000000000002">(مثال: بلاستيك &gt; 50 كجم للمنزل)</tspan></text>
+</g>
+<g class="node" data-id="FlagAnomaly" data-label="رصد شذوذ قطعي: Anomaly_Flag = TRUE" data-shape="rectangle">
+  <rect x="167.6584166666666" y="1273.7949999999998" width="264.991" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="300.1539166666666" y="1292.245" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">رصد شذوذ قطعي: Anomaly_Flag = TRUE</text>
+</g>
+<g class="node" data-id="CheckHouseholdBaseline" data-label="هل الوزن &gt; (المتوسط التاريخي للأسرة × 3.5)؟" data-shape="diamond">
+  <polygon points="563.9592499999999,821.0799999999999 732.1667499999999,989.2874999999999 563.9592499999999,1157.495 395.7517499999999,989.2874999999999" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="563.9592499999999" y="989.2874999999999" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">هل الوزن &gt; (المتوسط التاريخي للأسرة × 3.5)؟</text>
+</g>
+<g class="node" data-id="Approve" data-label="اعتماد الوزن: Anomaly_Flag = FALSE" data-shape="rectangle">
+  <rect x="548.0874166666665" y="1273.7949999999998" width="271.65999999999997" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="683.9174166666664" y="1292.245" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">اعتماد الوزن: Anomaly_Flag = FALSE</text>
+</g>
+<g class="node" data-id="HoldState" data-label="تجميد رصيد النقاط وتحويل الطلب للمشرف الرقابي" data-shape="rectangle">
+  <rect x="128.01491666666664" y="1358.695" width="344.27799999999996" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="300.15391666666665" y="1377.145" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">تجميد رصيد النقاط وتحويل الطلب للمشرف الرقابي</text>
+</g>
+<g class="node" data-id="MintLedger" data-label="صرف النقاط فوراً في دفتر الأستاذ (Double-Entry Mint)" data-shape="rectangle">
+  <rect x="500.29291666666654" y="1358.695" width="367.2489999999999" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="683.9174166666664" y="1377.145" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">صرف النقاط فوراً في دفتر الأستاذ (Double-Entry Mint)</text>
+</g>
+</svg>

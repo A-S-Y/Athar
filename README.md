@@ -43,7 +43,7 @@
 1. **المواطنين (Residents):** فرز النفايات من المنازل وطلب الاستلام عبر تطبيق الجوال وكسب «نقاط أثر الخضراء» (Green Points).
 2. **عمال النظافة والأسطول الميداني (Field Fleet):** جمع وفرز الشحنات ووزنها ميدانياً بدقة فائقة باستخدام موازين ذكية مقترنة عبر الـ Bluetooth.
 3. **لوحة التحكم المركزية للبلدية (Back-Office Admin Portal):** غرفة قيادة شاملة لإدارة التوجيه الآلي، وتتبع الأسطول جغرافياً، والرقابة على الأوزان، وإدارة الشكاوى، والتدقيق المالي.
-4. **الشركاء والمتاجر المحلية (Merchant Network):** استبدال النقاط المكتسبة بسلع استهلاكية وخصومات حقيقية عبر قسائم رقمية مشفرة (QR Codes).
+4. **متجر أثر الإلكتروني (Two-Step Digital Store):** شراء المنتجات والسلع الداعمة للبيئة بنقاط أثر والريال اليمني عبر نظام الشراء الرقمي بخطوتين (إرفاق إثبات التحويل المالي والتحقق الإداري المباشر).
 
 ---
 
@@ -56,7 +56,7 @@ flowchart TB
     subgraph Clients ["طبقة العملاء والواجهات (Client Layer)"]
         ResApp["📱 تطبيق المواطن (Flutter Mobile)"]
         WorkApp["🚴 تطبيق عامل الجمع (Flutter Mobile)"]
-        MerchApp["🏪 بوابة التاجر ونقاط البيع (Flutter / Web)"]
+        StoreWeb["🛍️ بوابة المتجر الإلكتروني (Flutter / Web)"]
         AdminPortal["🖥️ لوحة تحكم إدارة البلدية (React Vite SPA)"]
     end
 
@@ -69,14 +69,14 @@ flowchart TB
         DispatchMod["🗺️ وحدة التوجيه والعمليات (Dispatch & Fleet)"]
         WeighMod["⚖️ وحدة الأوزان والتحقق (Weighing & Verification)"]
         LedgerMod["💰 وحدة دفتر الأستاذ (Double-Entry Ledger)"]
-        StoreMod["🎁 وحدة متجر المكافآت (Store & Vouchers)"]
+        StoreMod["🛍️ وحدة المتجر وإثباتات الدفع (Store & Orders)"]
         TicketMod["🎫 وحدة خدمة العملاء (Support & CRM)"]
         AuditMod["📋 وحدة الرقابة والتدقيق (Immutable Audit)"]
     end
 
     subgraph AsyncProcessing ["طبقة المعالجة الخلفية غير المتزامنة (Async & Background Workers)"]
-        OutboxWorker["📤 مشغل صندوق الصادر (Transactional Outbox Worker)"]
-        AnalyticsWorker["📊 مشغل التقارير الإحصائية (Cron Analytics)"]
+        WorkerQueue["⚙️ معالج المهام الخلفية والإشعارات (BullMQ Background Workers)"]
+        AnalyticsWorker["📊 مشغل التقارير والورديات (Cron Analytics)"]
     end
 
     subgraph DataStorage ["طبقة البيانات والتخزين (Data & Cache Layer)"]
@@ -93,7 +93,7 @@ flowchart TB
     %% اتصالات الواجهات
     ResApp -->|HTTPS / REST| Nginx
     WorkApp -->|HTTPS / REST| Nginx
-    MerchApp -->|HTTPS / REST| Nginx
+    StoreWeb -->|HTTPS / REST| Nginx
     AdminPortal -->|HTTPS / WSS| Nginx
     WorkApp -.->|BLE Pairing| BLE
 
@@ -110,15 +110,16 @@ flowchart TB
     BackendCore -->|Prisma / Kysely Queries| Postgres
     BackendCore -->|Distributed Locks & Caching| RedisDB
 
-    %% معالجة صندوق الصادر
-    BackendCore -.->|Write Event| Postgres
-    OutboxWorker -->|Poll FOR UPDATE SKIP LOCKED| Postgres
-    OutboxWorker --> SMS
-    OutboxWorker --> FCM
+    %% معالجة المهام الخلفية
+    BackendCore -->|Job Enqueue| RedisDB
+    WorkerQueue -->|Consume Queue| RedisDB
+    WorkerQueue --> Postgres
+    WorkerQueue --> SMS
+    WorkerQueue --> FCM
 ```
 
 > **الأساس المنطقي المعماري:**
-> تم اختيار نمط **Modular Monolith** مع Node.js و TypeScript لتفادي التعقيد التشغيلي وشبكات الخدمات المصغرة (Microservices) في المرحلة الأولى، مع عزل النطاقات برمجياً. يتم تفريغ العمليات الطويلة (SMS, Push) عبر **Transactional Outbox Pattern** لضمان استجابة سريعة للـ API بأقل من 50 ميلي ثانية.
+> تم اختيار نمط **Modular Monolith** مع Node.js و TypeScript لتفادي التعقيد التشغيلي وشبكات الخدمات المصغرة (Microservices)، مع عزل النطاقات برمجياً. يتم تفريغ العمليات غير المتزامنة (SMS, Push) عبر **BullMQ Background Workers** لضمان استجابة سريعة للـ API بأقل من 50 ميلي ثانية.
 
 ---
 
@@ -134,7 +135,7 @@ erDiagram
     users ||--o| ledger_accounts : "يمتلك حساب نقاط"
     users ||--o{ service_requests : "يرفع طلبات"
     users ||--o{ worker_tasks : "يُكلف بمهام"
-    users ||--o| merchants : "يدير متجر شريك"
+    users ||--o{ store_orders : "يرفع طلبات شراء"
     users ||--o{ support_tickets : "يفتح بلاغات"
 
     geofence_zones ||--o{ household_addresses : "يحتوي منازل"
@@ -146,8 +147,7 @@ erDiagram
     service_requests ||--o{ collection_weighings : "يسجل أوزان"
     service_requests ||--o{ support_tickets : "يرتبط بشكوى"
 
-    merchants ||--o{ store_items : "يعرض سلع"
-    store_items ||--o{ store_orders : "يُشترى في طلبات"
+    store_products ||--o{ store_orders : "يُطلب في"
 
     ledger_accounts ||--o{ green_points_ledger : "حساب دائن (Source)"
     ledger_accounts ||--o{ green_points_ledger : "حساب مدين (Destination)"
@@ -187,10 +187,34 @@ erDiagram
         boolean anomaly_flag "مؤشر الشذوذ والاحتيال"
     }
 
+    store_products {
+        uuid id PK
+        varchar sku UK
+        varchar title
+        decimal price_yer
+        int points_price "سعر النقاط الاختياري"
+        int stock_qty "الكمية المتاحة"
+        boolean is_available
+    }
+
+    store_orders {
+        uuid id PK
+        varchar order_number UK
+        uuid buyer_id FK
+        uuid product_id FK
+        int points_spent
+        decimal amount_yer
+        varchar payment_method "BANK_TRANSFER | CASH"
+        varchar transfer_reference
+        text proof_image_url "صورة إيصال التحويل"
+        varchar status "PENDING_VERIFICATION | VERIFIED_PAID | FULFILLED | REJECTED"
+        uuid verified_by_staff_id FK
+    }
+
     ledger_accounts {
         uuid id PK
         uuid user_id FK
-        varchar account_type "SYSTEM_MINT | HOUSEHOLD | ESCROW"
+        varchar account_type "SYSTEM_MINT | HOUSEHOLD | SYSTEM_BURN"
         bigint balance "الرصيد الدقيق"
     }
 
@@ -200,7 +224,7 @@ erDiagram
         uuid source_account_id FK
         uuid dest_account_id FK
         bigint amount "القيد المتوازن"
-        varchar operation_type
+        varchar operation_type "MINT_WEIGHT | REDEEM_ORDER | REVERSAL"
         varchar idempotency_key UK
     }
 ```
@@ -223,8 +247,7 @@ sequenceDiagram
     participant WApp as تطبيق العامل
     participant API as خادم Fastify API
     participant DB as قاعدة بيانات PostgreSQL
-    participant Outbox as صندوق الصادر (outbox_messages)
-    participant WorkerJob as معالج الأحداث (BullMQ)
+    participant WorkerJob as معالج المهام (BullMQ)
     participant Push as إشعارات الهاتف (FCM)
 
     Worker->>Scale: وزن النفايات عبر البلوتوث
@@ -241,17 +264,15 @@ sequenceDiagram
     API->>DB: تحديث حالة الطلب إلى WEIGHED
     API->>DB: حساب النقاط: 12.5 كجم × 15 نقطة = 187 GP
     API->>DB: قيد محاسبي مزدوج متوازن في green_points_ledger
-    API->>DB: إدراج حدث الإشعار في outbox_messages
     API->>DB: COMMIT TRANSACTION
+    
+    API->>WorkerJob: إرسال مهمة الإشعار إلى طابور المعالجة
     deactivate API
     
     API-->>WApp: 201 Created { status: "COMPLETED", pointsEarned: 187 }
     
-    Note over Outbox,WorkerJob: تفريغ صندوق الصادر دون تأخير الـ API
-    WorkerJob->>Outbox: استعلام عن الرسائل المعلقة (SELECT SKIP LOCKED)
     WorkerJob->>Push: إرسال إشعار فوري لهاتف المواطن
     Push-->>Resident: إشعار: تم إيداع 187 نقطة خضراء لحسابك بنجاح! 🌿
-    WorkerJob->>Outbox: تحديث حالة الرسالة إلى PUBLISHED
 ```
 
 ---
@@ -304,7 +325,7 @@ flowchart TD
     CheckAbsolute -- "لا" --> CheckHouseholdBaseline{"هل الوزن > (المتوسط التاريخي للأسرة × 3.5)؟"}
     
     CheckHouseholdBaseline -- "نعم (قفزة شاذة)" --> FlagAnomaly
-    CheckHouseholdBaseline -- "لا (وزن طبيعي)" --> Approve["اعتماد الوزن: Anomaly_Flag = FALSE"]
+    CheckHouseholdBaseline -- "لا" --> Approve["اعتماد الوزن: Anomaly_Flag = FALSE"]
     
     FlagAnomaly --> HoldState["تجميد رصيد النقاط وتحويل الطلب للمشرف الرقابي"]
     Approve --> MintLedger["صرف النقاط فوراً في دفتر الأستاذ (Double-Entry Mint)"]
@@ -318,12 +339,12 @@ flowchart TD
 
 | المسار التشعيبي (Document Link) | موضوع الوثيقة | أبرز المحتويات والمخططات |
 | :--- | :--- | :--- |
-| 📘 [نظرة عامة على المعمارية](docs/01-architecture/system-overview.md) | معمارية النظام ومبادئ التصميم | مخططات C4 (Level 1 & Level 2)، نمط Outbox، ومواصفات SLOs. |
+| 📘 [نظرة عامة على المعمارية](docs/01-architecture/system-overview.md) | معمارية النظام ومبادئ التصميم | مخططات C4 (Level 1 & Level 2)، معالجة المهام الخلفية، ومواصفات SLOs. |
 | 🖥️ [لوحة تحكم الإدارة المركزية](docs/01-architecture/back-office-portal.md) | المنصة الإدارية للموظفين | مصفوفة RBAC، غرف القيادة الست، والتصميم الهيكلي للواجهة. |
-| 🗃️ [مخطط العلاقات والكيانات (ERD)](docs/02-database/erd.md) | بنية قاعدة البيانات الكاملة | تفصيل الـ 28 جدولاً، سياقات النطاقات، وفهارس PostGIS المكانية. |
+| 🗃️ [مخطط العلاقات والكيانات (ERD)](docs/02-database/erd.md) | بنية قاعدة البيانات الكاملة | تفصيل الجداول وسياقات النطاقات ودورة الشراء بخطوتين وفهارس PostGIS المكانية. |
 | 📖 [قاموس بيانات قاعدة البيانات](docs/02-database/data-dictionary.md) | معجم الجداول والحقول | أنواع الحقول، القيود، الشروط، والقيم الافتراضية لكل جدول. |
-| ⏱️ [مخططات التتابع الزمني للعمليات](docs/03-flows-and-logic/sequences.md) | تسلسل تدفق البيانات | تسجيل الدخول بالـ OTP، الجمع الميداني، ودورة حياة القسائم. |
-| 🔄 [آلات الحالة المحددة (FSM)](docs/03-flows-and-logic/state-machines.md) | دورات حياة الكيانات | مصفوفات الانتقال، حالات طلبات الخدمة، المهام، والتذاكر. |
+| ⏱️ [مخططات التتابع الزمني للعمليات](docs/03-flows-and-logic/sequences.md) | تسلسل تدفق البيانات | تسجيل الدخول بالـ OTP، الجمع الميداني، ودورة الشراء الرقمي بخطوتين. |
+| 🔄 [آلات الحالة المحددة (FSM)](docs/03-flows-and-logic/state-machines.md) | دورات حياة الكيانات | مصفوفات الانتقال، حالات طلبات الخدمة، المهام، التذاكر، وطلبات المتجر. |
 | 🧠 [منطق الأعمال والخوارزميات](docs/03-flows-and-logic/business-logic.md) | الخوارزميات الحسابية | فحص PostGIS `ST_Covers`، كشف الشذوذ، ومفاتيح منع التكرار. |
 | 🔌 [مواصفات وعقود الـ APIs](docs/04-specifications/api-contracts.md) | مواصفات الـ REST Endpoints | عقود الـ Mobile والـ Worker والـ Admin وصيغ أخطاء RFC 7807. |
 | 🛡️ [الأمان والامتثال والتحكم بالوصول](docs/04-specifications/security-and-compliance.md) | النموذج الأمني والتشفير | تحليل STRIDE، تشفير AES-256، الفهرسة العمياء، والمصادقة الثنائية. |
@@ -342,8 +363,8 @@ flowchart TD
 ### 2. استنساخ المستودع وتهيئة المتغيرات
 ```bash
 # 1. استنساخ المستودع
-git clone https://github.com/your-org/athar-platform.git
-cd athar-platform
+git clone https://github.com/A-S-Y/Athar.git
+cd Athar
 
 # 2. إنشاء ملف متغيرات البيئة
 cp .env.example .env
@@ -370,13 +391,13 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-### 5. تشغيل خادم التطوير ومشغل الصادر
+### 5. تشغيل خادم التطوير ومعالج المهام الخلفية
 ```bash
 # تشغيل خادم Fastify في وضع التطوير المباشر
 pnpm dev
 
-# في نافذة طرفية ثانية: تشغيل مشغل صندوق الصادر
-pnpm worker:outbox
+# في نافذة طرفية ثانية: تشغيل معالج المهام الخلفية
+pnpm worker:queue
 ```
 
 ### 6. التحقق من سلامة النظام (Health Check)

@@ -49,7 +49,7 @@ erDiagram
     MATERIAL_PRICE ||--o{ PARTNER_DELIVERY : "applies tariff"
     
     %% System Infrastructure
-    USER_ACCOUNT ||--o{ OUTBOX_MESSAGE : "recipient"
+    USER_ACCOUNT ||--o{ AUDIT_LOG : "triggers actions"
 
     %% Entity Definitions with Attributes
     USER_ACCOUNT {
@@ -190,18 +190,6 @@ erDiagram
         timestamptz resolved_at
     }
 
-    OUTBOX_MESSAGE {
-        uuid id PK
-        varchar aggregate_type "Dispatch/Order/Visit"
-        uuid aggregate_id
-        enum channel "sms_otp/push_notification/webhook"
-        text recipient
-        jsonb payload
-        enum status "pending/processing/sent/failed"
-        integer retry_count
-        timestamptz scheduled_at
-        timestamptz sent_at
-    }
 
     AUDIT_LOG {
         uuid id PK
@@ -253,7 +241,6 @@ erDiagram
    * `PARTNER_DELIVERY`: شحنات تسليم المواد للشركاء.
    * `PARTNER_PAYMENT`: مطالبات ومستحقات التحصيل المالي للشركاء.
    * `SUPPORT_TICKET`: تذاكر الشكاوى والدعم الفني للمواطنين.
-   * `OUTBOX_MESSAGE`: طابور رسائل صندوق الصادر الموثوق.
    * `CANDIDATE_APPLICATION` & `INCIDENT_REPORT` & `VOLUNTEER_INTEREST`: طلبات التوظيف وبلاغات الحوادث والتطوع.
 
 ---
@@ -271,11 +258,7 @@ CREATE INDEX idx_service_request_location_gist ON service_requests USING GIST (l
 -- 2. فهرس معمي HMAC للبحث السريع عن الهواتف المشفرة دون فك التشفير
 CREATE INDEX idx_user_account_phone_bidx ON user_accounts (phone_bidx);
 
--- 3. فهارس التزامن وصندوق الصادر الموثوق (Outbox Polling)
-CREATE INDEX idx_outbox_pending_scheduled ON outbox_messages (scheduled_at) 
-WHERE status = 'pending';
-
--- 4. فهارس دفتر النقاط المزدوج ومطابقة الأرصدة
+-- 3. فهارس دفتر النقاط المزدوج ومطابقة الأرصدة
 CREATE INDEX idx_ledger_debit_account ON green_points_ledger (debit_account_id, created_at);
 CREATE INDEX idx_ledger_credit_account ON green_points_ledger (credit_account_id, created_at);
 CREATE INDEX idx_ledger_correlation ON green_points_ledger (correlation_id);
