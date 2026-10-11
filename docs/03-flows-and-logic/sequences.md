@@ -79,7 +79,7 @@ sequenceDiagram
     WApp->>API: POST /qr/resolve { qrCode: "MN-48192", taskId }
     
     activate API
-    API->>DB: مطابقة رمز البطاقة المشفر (HouseholdQrToken) مع المهمة النشطة
+    API->>DB: مطابقة رمز بطاقة الأسرة المعبر عن كود الأسرة (HouseholdQrToken) مع المهمة النشطة
     DB-->>API: معرّف الأسرة الصالح (Household ID)
     API-->>WApp: 200 OK { entityCode: "48192", address: "حي ريمي - عمارة 14" }
     deactivate API
@@ -91,7 +91,7 @@ sequenceDiagram
     WApp->>API: POST /visits { householdId, organicKg, dryKg, rejectedKg, scaleReference }
     
     activate API
-    API->>API: فحص الشذوذ الوزني مقارنة بسقف الاستهلاك والمتوسط التاريخي
+    API->>API: فحص الشذوذ الوزني بالتحقق الصارم من السقف الأقصى المعتمد للخامة
     
     alt رصد وزن شاذ أو مريب (> السقف الأقصى المعتمد)
         API->>DB: تسجيل الزيارة بحالة UNDER_REVIEW (تعليق النقاط)
@@ -194,7 +194,7 @@ sequenceDiagram
 
     Note over Worker,WApp: العمل بدون اتصال (Offline Mode) في أحياء المنصورة
     Worker->>WApp: إتمام عمليات وزن متعددة أثناء انقطاع شبكة الهاتف
-    WApp->>WApp: حفظ السجلات محلياً في SQLite مع توقيع البلوتوث المالي
+    WApp->>WApp: حفظ السجلات محلياً في SQLite مع التوقيع الرقمي للدفعة الميدانية
 
     Note over WApp,Fastify: استعادة الاتصال بالإنترنت
     WApp->>Fastify: POST /v1/collection/batch-sync { batchReference, recordsCount, records: [...] }
@@ -214,7 +214,7 @@ sequenceDiagram
     loop لكل عملية وزن داخل الدفعة
         BackgroundWorker->>DB: BEGIN TRANSACTION
         BackgroundWorker->>DB: التحقق من عدم التكرار (Idempotency Key Check)
-        BackgroundWorker->>DB: إدراج سجل collection_weighings
+        BackgroundWorker->>DB: إدراج سجل بنود وأوزان الجمع المعتمدة (collection_items)
         BackgroundWorker->>DB: حساب ونقل النقاط الخضراء في green_points_ledger
         BackgroundWorker->>DB: COMMIT TRANSACTION
     end
