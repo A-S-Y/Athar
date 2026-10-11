@@ -33,7 +33,6 @@
 5. [مخطط آلة الحالة لدورة حياة الطلب (State Machine Diagram)](#-مخطط-آلة-الحالة-لدورة-حياة-الطلب-state-machine-diagram)
 6. [مخطط التدفق لمنطق كشف الشذوذ والأوزان (Business Logic Flowchart)](#-مخطط-التدفق-لمنطق-كشف-الشذوذ-والأوزان-business-logic-flowchart)
 7. [دليل التوثيق الهندسي التفصيلي (Detailed Documentation Matrix)](#-دليل-التوثيق-الهندسي-التفصيلي-detailed-documentation-matrix)
-8. [دليل التشغيل السريع للمطورين (Quick Start Guide)](#-دليل-التشغيل-السريع-للمطورين-quick-start-guide)
 
 ---
 
@@ -288,61 +287,6 @@ flowchart TD
 | 🛡️ [الأمان والامتثال والتحكم بالوصول](docs/04-specifications/security-and-compliance.md) | النموذج الأمني والتشفير | تحليل STRIDE، تشفير AES-256، الفهرسة العمياء، والمصادقة الثنائية. |
 | 🗺️ [خارطة طريق المشروع (Roadmap)](docs/04-specifications/roadmap.md) | الجدول الزمني ومراحل الإطلاق | مخطط جانت (Gantt Chart)، معالم المشروع، وخطة تجربة حي ريمي. |
 | 🚀 [النشر والعمليات والبنية التحتية](docs/04-specifications/deployment-and-ops.md) | أدلة الـ DevOps والتشغيل | ملف Dockerfile متعدد المراحل، docker-compose، وفحوصات الصحة. |
-
----
-
-## 🚀 دليل التشغيل السريع للمطورين (Quick Start Guide)
-
-### 1. المتطلبات المسبقة (Prerequisites)
-* **Node.js:** الإصدار `v20.x LTS` أو أحدث.
-* **مدير الحزم:** `pnpm` (الإصدار `9.x`).
-* **Docker & Docker Compose:** لتشغيل قواعد البيانات والخدمات المساعدة محلياً.
-
-### 2. استنساخ المستودع وتهيئة المتغيرات
-```bash
-# 1. استنساخ المستودع
-git clone https://github.com/A-S-Y/Athar.git
-cd Athar
-
-# 2. إنشاء ملف متغيرات البيئة
-cp .env.example .env
-```
-
-### 3. تشغيل الخدمات الأساسية عبر Docker
-```bash
-# تشغيل PostgreSQL (مع PostGIS) وخادم Redis
-docker compose up -d postgres redis
-
-# التحقق من صحة عمل الحاويات
-docker compose ps
-```
-
-### 4. تثبيت الحزم وتطبيق الترحيلات (Migrations & Seed)
-```bash
-# تثبيت الاعتماديات
-pnpm install
-
-# توليد عميل Prisma أو تشغيل ترحيلات SQL
-pnpm db:migrate
-
-# تغذية قاعدة البيانات بالبيانات الافتراضية (نطاقات المنصورة وخامات النفايات)
-pnpm db:seed
-```
-
-### 5. تشغيل خادم التطوير ومعالج المهام الخلفية
-```bash
-# تشغيل خادم Fastify في وضع التطوير المباشر
-pnpm dev
-
-# في نافذة طرفية ثانية: تشغيل معالج المهام الخلفية
-pnpm worker:queue
-```
-
-### 6. التحقق من سلامة النظام (Health Check)
-```bash
-curl http://localhost:3000/health/ready
-# الاستجابة المتوقعة: {"status":"UP","checks":{"database":"UP","redis":"UP"}}
-```
 
 ---
 
