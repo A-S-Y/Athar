@@ -5,7 +5,9 @@
 
 ---
 
-## 1. مخطط البنية التحتية للنشر والخدمات (Deployment Topology)
+## 1. مخطط ومواصفات البنية التحتية للنشر (Deployment Topology & Contabo Hosting)
+
+تُستضاف كافة مكونات المنظومة الإنتاجية للعقدة الأولى (مديرية المنصورة، عدن) على خادم افتراضي خاص مستأجر من شركة **Contabo** (`Contabo Cloud VPS - Ubuntu 24.04 LTS`)، مع تخزين كافة الملفات والمستندات وإيصالات الدفع ذاتياً على نفس السيرفر (`Contabo Self-Hosted Private Disk Storage`) دون الحاجة لأي خدمات تخزين سحابية خارجية (مثل AWS S3)، مما يضمن الخصوصية التامة وترشيد التكاليف التشغيلية وسرعة المعالجة المباشرة.
 
 ```mermaid
 flowchart TD
@@ -14,7 +16,7 @@ flowchart TD
         AdminWeb["لوحة تحكم البلدية (React Vite SPA)"]
     end
 
-    subgraph IngressLayer ["طبقة الدخول العكسي والأمان"]
+    subgraph IngressLayer ["طبقة الدخول العكسي والأمان (Contabo Edge)"]
         NginxProxy["خادم Nginx العكسي (SSL Termination TLS 1.3 / Rate Limiter)"]
     end
 
@@ -25,9 +27,10 @@ flowchart TD
         AnalyticsWorker["عامل التحليلات والتقارير (Cron Worker)"]
     end
 
-    subgraph DataLayer ["طبقة البيانات والتخزين"]
+    subgraph DataLayer ["طبقة البيانات والتخزين (Contabo Host Storage)"]
         PostgresDB[("PostgreSQL 16 + PostGIS 3.4<br/>(Master Database)")]
         RedisCache[("Redis 7 Alpine<br/>(Cache & Rate Limiting)")]
+        HostStorage[("وحدة التخزين المحلي المشفر<br/>(/var/athar/storage/uploads)")]
     end
 
     subgraph ExternalServices ["الخدمات الخارجية"]
@@ -43,6 +46,8 @@ flowchart TD
     FastifyAPI2 --> PostgresDB
     FastifyAPI1 --> RedisCache
     FastifyAPI2 --> RedisCache
+    FastifyAPI1 --> HostStorage
+    FastifyAPI2 --> HostStorage
     BackgroundWorker --> PostgresDB
     BackgroundWorker --> RedisCache
     BackgroundWorker --> YemenSMS
@@ -159,9 +164,12 @@ services:
       - PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-athar_admin}:${POSTGRES_PASSWORD:-athar_secure_pass_2026}@postgres:5432/${POSTGRES_DB:-athar_db}?schema=public
       - REDIS_URL=redis://:${REDIS_PASSWORD:-athar_redis_pass_2026}@redis:6379/0
+      - STORAGE_LOCAL_PATH=/var/athar/storage/uploads
       - JWT_SECRET=${JWT_SECRET}
       - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}
       - BLIND_INDEX_PEPPER=${BLIND_INDEX_PEPPER}
+    volumes:
+      - athar_storage:/var/athar/storage
     ports:
       - "3000:3000"
 
@@ -181,11 +189,15 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER:-athar_admin}:${POSTGRES_PASSWORD:-athar_secure_pass_2026}@postgres:5432/${POSTGRES_DB:-athar_db}?schema=public
       - REDIS_URL=redis://:${REDIS_PASSWORD:-athar_redis_pass_2026}@redis:6379/0
+      - STORAGE_LOCAL_PATH=/var/athar/storage/uploads
       - SMS_GATEWAY_API_KEY=${SMS_GATEWAY_API_KEY}
+    volumes:
+      - athar_storage:/var/athar/storage
 
 volumes:
   postgres_data:
   redis_data:
+  athar_storage:
 ```
 
 ---
@@ -197,6 +209,7 @@ volumes:
 | `NODE_ENV` | String | نعم | `development` أو `production` |
 | `DATABASE_URL` | String | نعم | رابط الاتصال بقاعدة PostgreSQL مع بيانات الاعتماد |
 | `REDIS_URL` | String | نعم | رابط الاتصال بخادم Redis |
+| `STORAGE_LOCAL_PATH` | String | نعم | مسار التخزين المحلي الآمن على سيرفر Contabo للمرفقات وإيصالات الدفع (`/var/athar/storage/uploads`) |
 | `JWT_SECRET` | String | نعم | مفتاح توقيع رموز المصادقة (64 حرفاً عشوائياً) |
 | `DATA_ENCRYPTION_KEY`| Hex (64) | نعم | مفتاح تشفير البيانات الحساسة AES-256-GCM |
 | `BLIND_INDEX_PEPPER` | Hex (64) | نعم | بهار التجزئة المستخدم للفهرسة العمياء برقم الهاتف |
@@ -223,5 +236,5 @@ volumes:
   }
   ```
 
-### 5.2 التسجيل الهيكلي عبر مكتبة Pino (Structured JSON Logging):
+### 5.2 التسجيل الهيكلي الموحد (Structured JSON Logging):
 تُخرج جميع الطلبات والأخطاء بصيغة JSON عالية السرعة متضمنةً `requestId` و `durationMs` و `userId` مما يتيح تصديرها مباشرة إلى Grafana Loki أو ElasticSearch.

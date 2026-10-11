@@ -42,8 +42,8 @@ flowchart TD
     end
 
     subgraph Gateway ["طبقة البوابة والتحكم (Fastify Edge)"]
-        G1["Fastify Reverse Proxy & Security Headers (Helmet)"]
-        G2["Rate Limiting & Anti-Abuse (Redis/Sliding Window)"]
+        G1["Fastify Reverse Proxy & Security Headers"]
+        G2["Rate Limiting & Anti-Abuse (Redis)"]
         G3["Zod Schema Validation & OpenAPI Generator"]
         G4["Idempotency Middleware (UUIDv4 Tracking)"]
     end
@@ -69,10 +69,10 @@ flowchart TD
         W6["Inventory Reservation TTL Cleaner"]
     end
 
-    subgraph DataStore ["قواعد البيانات والتخزين المؤقت"]
+    subgraph DataStore ["قواعد البيانات والتخزين"]
         DB[("PostgreSQL 16+<br/>+ PostGIS 3.4+")]
         REDIS[("Redis 7+<br/>(Cache, Rate Limits & BullMQ)")]
-        S3[("S3 / MinIO<br/>(Encrypted Object Storage)")]
+        STORAGE[("وحدة التخزين المحلي المشفر<br/>(Contabo Self-Hosted Storage)")]
     end
 
     Clients --> Gateway
@@ -82,7 +82,7 @@ flowchart TD
     CoreBackend --> |Enqueues Jobs| REDIS
     WorkerPool <--> DB
     WorkerPool <--> REDIS
-    CoreBackend --> S3
+    CoreBackend --> STORAGE
 ```
 
 ### تفصيل المكونات التقنية:
@@ -153,7 +153,7 @@ flowchart LR
     subgraph DataContainers ["حاويات البيانات والتخزين (Persistence)"]
         PostgresDB[("🐘 PostgreSQL 16+<br/>+ PostGIS Extension<br/>(Port 5432)")]
         RedisDB[("⚡ Redis 7+<br/>(Port 6379)")]
-        ObjectStore[("📦 S3 / MinIO<br/>(Port 9000 HTTPS)")]
+        LocalStorage[("📁 وحدة التخزين المحلي المشفر<br/>(Contabo Private Volume)")]
     end
 
     FlutterApp --> |"REST HTTPS / TLS 1.3"| FastifyApp
@@ -162,7 +162,7 @@ flowchart LR
 
     FastifyApp --> |"TCP / SQL Connection Pool"| PostgresDB
     FastifyApp --> |"TCP / RESP3 Protocol"| RedisDB
-    FastifyApp --> |"AWS SDK / S3 API"| ObjectStore
+    FastifyApp --> |"Local Filesystem / Streaming"| LocalStorage
 
     WorkerService --> |"TCP / SQL Connection Pool"| PostgresDB
     WorkerService --> |"Job Queue / PubSub"| RedisDB
@@ -215,16 +215,17 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    subgraph Host ["خادم التشغيل الإنتاجي (Production Host / Ubuntu 24.04 LTS)"]
+    subgraph Host ["خادم التشغيل الإنتاجي (Contabo VPS / Ubuntu 24.04 LTS)"]
         subgraph Ingress ["طبقة الدخول العكسي (Reverse Proxy)"]
             Nginx["Nginx / Caddy Proxy<br/>(TLS Termination & HTTP/2)"]
         end
 
-        subgraph Containers ["حاويات Docker المعزولة"]
+        subgraph Containers ["حاويات Docker المعزولة والتخزين المحلي"]
             API_Container["Node.js Fastify API Container<br/>(Non-root Alpine User)"]
             Worker_Container["Node.js Worker Container<br/>(BullMQ Runner)"]
             Postgres_Container["PostgreSQL 16 + PostGIS Container<br/>(Persistent SSD Volume)"]
             Redis_Container["Redis 7 Container<br/>(AOF Persistence)"]
+            Storage_Volume[("Contabo Local Storage Volume<br/>(/var/athar/storage/uploads)")]
         end
     end
 
@@ -232,6 +233,7 @@ flowchart TD
     Nginx -->|Proxy Pass 127.0.0.1:3000| API_Container
     API_Container <-->|Internal Docker Network| Postgres_Container
     API_Container <-->|Internal Docker Network| Redis_Container
+    API_Container <-->|Read / Write| Storage_Volume
     Worker_Container <-->|Internal Docker Network| Postgres_Container
     Worker_Container <-->|Internal Docker Network| Redis_Container
 ```

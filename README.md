@@ -1,5 +1,5 @@
-# 🌿 نظام «أثر» للإدارة الذكية للنفايات والتحفيز المجتمعي
-### ATHAR — Smart Waste Management & Community Incentivization Platform
+# 🌿 مشروع «أثر» (ATHAR) — منظومة إدارة وفرز النفايات واسترداد الموارد والتحفيز المجتمعي
+### ATHAR — Municipal Waste Sorting, Resource Recovery & Civic Incentivization Platform
 #### العقدة التشغيلية الأولى: مديرية المنصورة — العاصمة عدن (Node 1: Al-Mansoura, Aden)
 
 ---
@@ -84,14 +84,14 @@ flowchart TB
     subgraph DataStore ["قواعد البيانات والتخزين (Persistence Layer)"]
         DB[("🐘 PostgreSQL 16 + PostGIS<br/>25 جدولاً معتمداً")]
         REDIS[("⚡ Redis 7<br/>طوابير BullMQ والتخزين المؤقت")]
-        S3[("📦 S3 / MinIO Storage<br/>إيصالات التحويل البنكي وصور الأدلة")]
+        STORAGE[("📁 التخزين المحلي على السيرفر<br/>Contabo Self-Hosted Private Storage")]
     end
 
     Clients --> Edge
     Edge --> Modules
     Modules --> DB
     Modules --> REDIS
-    Modules --> S3
+    Modules --> STORAGE
     Modules -.-> |إدراج المهام| REDIS
     Workers <--> REDIS
     Workers <--> DB

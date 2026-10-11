@@ -98,6 +98,56 @@
 | `is_verified` | `BOOLEAN` | `DEFAULT FALSE` | التحقق الميداني من صحة العنوان بواسطة المنسق |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL` | وقت التسجيل |
 
+### 3.3 جدول استبيان الضم المبدئي للأسرة (`intake_surveys`)
+حفظ مسودات وإجابات استبيان ضم الأسرة وبيانات الاستهلاك وتفضيلات الجمع.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد للاستبيان |
+| `household_id` | `UUID` | `REFERENCES users(id)` | الأسرة صاحبة الاستبيان |
+| `answers` | `JSONB` | `NOT NULL` | إجابات الاستبيان المهيكلة بصيغة JSON |
+| `template_version`| `INT` | `NOT NULL DEFAULT 1` | رقم إصدار نموذج الاستبيان |
+| `status` | `survey_status_enum`| `DEFAULT 'SUBMITTED'` | الحالات: `DRAFT`, `SUBMITTED`, `REVIEWED`, `APPROVED` |
+| `submitted_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت إرسال الاستبيان أونلاين |
+| `reviewed_by` | `UUID` | `NULL REFERENCES users(id)` | المشرف الإداري الذي دقق الاستبيان |
+
+### 3.4 جدول نسخ بطاقات رموز القراءة الفيزيائية (`household_qr_tokens`)
+إدارة البطاقات الفيزيائية المطبوعة للأسرة الممثلة لمعرّف الكيان المقروء بشرياً (Unique Entity ID).
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد للبطاقة |
+| `household_id` | `UUID` | `REFERENCES users(id)` | الأسرة المالكة للبطاقة |
+| `entity_code_snapshot`| `VARCHAR(6)` | `NOT NULL` | كود الكيان القصير المكون من 5 إلى 6 خانات المطبوع على البطاقة |
+| `card_serial` | `VARCHAR(60)` | `UNIQUE NOT NULL` | الرقم التسلسلي الفيزيائي المطبوع على البطاقة |
+| `status` | `token_status_enum`| `NOT NULL DEFAULT 'ACTIVE'` | الحالات: `ACTIVE` (فعالة), `REVOKED` (معلقة/ملغاة), `REPLACED` (مستبدلة) |
+| `issued_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت إصدار وتفعيل البطاقة |
+| `revoked_at` | `TIMESTAMPTZ` | `NULL` | وقت إلغاء أو تعليق البطاقة في حال فقدانها |
+
+### 3.5 جدول محاولات طلب الخدمة خارج النطاق (`rejected_service_attempts`)
+تسجيل وتوثيق أي محاولة لطلب الخدمة من خارج نطاق تغطية مديرية المنصورة دون إسناد مهمة.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد للمحاولة المرفوضة |
+| `user_id` | `UUID` | `REFERENCES users(id)` | المستخدم صاحب المحاولة |
+| `location` | `GEOGRAPHY(Point, 4326)` | `NOT NULL` | إحداثيات GPS للموقع المرفوض |
+| `node_version` | `INT` | `NOT NULL` | رقم إصدار المضلع الجغرافي النشط وقت الفحص |
+| `reason` | `VARCHAR(100)` | `NOT NULL DEFAULT 'OUT_OF_GEOFENCE'` | سبب الرفض المكاني |
+| `attempted_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت رصد المحاولة |
+
+### 3.6 جدول قائمة انتظار توسع الخدمة (`demand_waitlist`)
+تسجيل رغبات المواطنين في المناطق المجاورة غير المغطاة للانضمام فور توسع الخدمة بموافقة مسبقة.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد للتسجيل |
+| `user_id` | `UUID` | `REFERENCES users(id)` | المستخدم المهتم بالخدمة |
+| `area` | `GEOGRAPHY(Point, 4326)` | `NOT NULL` | الإحداثيات التقريبية للمنطقة المطلوبة |
+| `consent_at` | `TIMESTAMPTZ` | `NOT NULL` | وقت إقرار وموافقة المستخدم على حفظ موقعه |
+| `status` | `waitlist_status_enum`| `DEFAULT 'PENDING'` | الحالات: `PENDING`, `NOTIFIED`, `ACTIVATED` |
+| `contacted_at` | `TIMESTAMPTZ` | `NULL` | وقت إخطار المواطن عند تدشين العقدة الجديدة |
+
 ---
 
 ## 4. النطاق 3: العمليات الميدانية والوزن والنفايات (Waste Operations & Weighing)
@@ -291,9 +341,128 @@
 | `error_summary` | `TEXT` | `NULL` | تفاصيل الأخطاء في حال تعثر بعض السجلات |
 | `synced_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت استقبال الدفعة ومعالجتها |
 
+### 9.2 جدول أخطاء صفوف الدفعات الميدانية (`field_batch_row_errors`)
+عزل وتوثيق أخطاء السجلات الفردية داخل دفعات المزامنة الميدانية لمنع تعطيل باقي الدفعة السليمة.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | معرف الخطأ الفريد |
+| `batch_id` | `UUID` | `REFERENCES field_batch_imports(id) ON DELETE CASCADE` | الدفعة المعنية |
+| `row_number` | `INT` | `NOT NULL` | رقم السطر في ملف الدفعة الميدانية |
+| `field_name` | `VARCHAR(60)` | `NOT NULL` | اسم الحقل الذي تسبب في الخطأ (مثل وزن غير صالح، كود غير موجود) |
+| `error_code` | `VARCHAR(50)` | `NOT NULL` | الرمز البرمجي المعياري للخطأ |
+| `message` | `TEXT` | `NOT NULL` | رسالة الخطأ التوضيحية لمشرف الميدان |
+| `resolution` | `row_resolution_enum`| `DEFAULT 'UNRESOLVED'` | حالة المعالجة: `UNRESOLVED`, `RESOLVED_MANUAL`, `DISCARDED` |
+| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت رصد الخطأ |
+
 ---
 
-## 10. خطة الفهارس وتحسين الأداء (Indexing & Partitioning Strategy)
+## 10. النطاق 9: شركاء استرداد الموارد والتسليم التجاري (Resource Partners & Commercial Operations)
+
+### 10.1 جدول شركاء استرداد الموارد (`resource_partners`)
+تسجيل مصانع وتجار إعادة التدوير المعتمدين لدى بلدية المنصورة لاستلام الخامات المفروزة.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد للشريك |
+| `name` | `VARCHAR(150)` | `NOT NULL UNIQUE` | اسم المنشأة أو المصنع الشريك |
+| `contact_encrypted`| `TEXT` | `NOT NULL` | بيانات الاتصال والشخص المسؤول مشفرة |
+| `material_scope` | `JSONB` | `NOT NULL` | نطاق المواد المصرح للشريك استلامها (عضوي، كرتون، معادن، بلاستيك) |
+| `status` | `partner_status_enum`| `NOT NULL DEFAULT 'ACTIVE'` | الحالات: `PENDING`, `ACTIVE`, `SUSPENDED` |
+| `verified_at` | `TIMESTAMPTZ` | `NULL` | تاريخ اعتماد الشريك رسمياً |
+| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت تسجيل الشريك |
+
+### 10.2 جدول نقاط التجميع والمستودعات البلدية (`collection_points`)
+مستودعات ونقاط التجميع الوسيطة لحفظ المواد المفروزة قبل توريدها للشركاء.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد لنقطة التجميع |
+| `node_id` | `UUID` | `REFERENCES geofence_zones(id)` | العقدة الجغرافية التابعة لها |
+| `name` | `VARCHAR(100)` | `NOT NULL` | اسم المستودع أو نقطة التجميع |
+| `location` | `GEOGRAPHY(Point, 4326)` | `NOT NULL` | الإحداثيات الجغرافية لموقع النقطة |
+| `capacity_kg` | `NUMERIC(12,3)`| `NOT NULL CHECK (capacity_kg > 0)` | السعة التخزينية القصوى بالكيلوغرام لمنع التكدس |
+| `status` | `point_status_enum`| `NOT NULL DEFAULT 'ACTIVE'` | الحالات: `ACTIVE`, `FULL`, `MAINTENANCE` |
+| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | تاريخ الإنشاء |
+
+### 10.3 جدول أسعار بيع المواد للشركاء (`material_prices`)
+تحديد التعريفات والأسعار الرسمية لبيع الكيلوغرام من الخامات المفروزة لكل شريك وفترات صلاحيتها.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد للتعريفة |
+| `partner_id` | `UUID` | `REFERENCES resource_partners(id)` | الشريك المعني بالسعر |
+| `material_code` | `VARCHAR(50)` | `NOT NULL` | كود المادة (مثل `DRY_RECYCLABLES`, `ORGANIC_COMPOST`) |
+| `price_per_kg` | `NUMERIC(14,2)`| `NOT NULL CHECK (price_per_kg >= 0)` | السعر بالريال اليمني للكيلوغرام الصافي |
+| `valid_from` | `TIMESTAMPTZ` | `NOT NULL` | بداية سريان التسعيرة |
+| `valid_to` | `TIMESTAMPTZ` | `NOT NULL` | نهاية سريان التسعيرة |
+| `status` | `price_status_enum` | `NOT NULL DEFAULT 'ACTIVE'` | الحالات: `ACTIVE`, `EXPIRED`, `SUPERSEDED` |
+
+### 10.4 جدول محاضر تسليم الشحنات للشركاء (`partner_deliveries`)
+توثيق خروج شحنات المواد من نقاط التجميع وتسليمها الفعلي إلى مصانع الشركاء.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد لمحضر التسليم |
+| `partner_id` | `UUID` | `REFERENCES resource_partners(id)` | الشريك المستلم |
+| `point_id` | `UUID` | `REFERENCES collection_points(id)` | مستودع التجميع مصدر الشحنة |
+| `source_visits` | `JSONB` | `NOT NULL` | مراجع زيارات الجمع الأصلية المكونة للشحنة لمنع التخصيص المزدوج |
+| `material_code` | `VARCHAR(50)` | `NOT NULL` | نوع الخامة المسلمة |
+| `weight_kg` | `NUMERIC(12,3)`| `NOT NULL CHECK (weight_kg > 0)` | الوزن الإجمالي الصافي للشحنة المسلمة |
+| `price_snapshot`| `NUMERIC(14,2)`| `NOT NULL` | لقطة السعر المعتمد وقت التسليم لحساب المستحقات |
+| `total_value_yer`| `NUMERIC(14,2)`| `GENERATED ALWAYS AS (weight_kg * price_snapshot) STORED` | القيمة الإجمالية للشحنة بالريال اليمني |
+| `status` | `delivery_status_enum`| `NOT NULL DEFAULT 'DRAFT'` | الحالات: `DRAFT`, `IN_TRANSIT`, `DELIVERED`, `INVOICED`, `DISPUTED` |
+| `delivered_at` | `TIMESTAMPTZ` | `NULL` | وقت الاستلام وتوقيع محضر الاستلام |
+
+### 10.5 جدول سندات تحصيل مبالغ الشركاء (`partner_payments`)
+توثيق تسديد المستحقات المالية وفواتير مبيعات المواد من الشركاء إلى حساب البلدية.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد لسند التحصيل |
+| `delivery_id` | `UUID` | `REFERENCES partner_deliveries(id)` | الشحنة المعنية بالسداد |
+| `amount` | `NUMERIC(14,2)`| `NOT NULL CHECK (amount > 0)` | المبلغ المحصل بالريال اليمني |
+| `reference` | `VARCHAR(100)` | `NOT NULL` | رقم السند أو الحوالة البنكية للشريك |
+| `proof_ref` | `VARCHAR(255)` | `NOT NULL` | مرجع صورة الشيك أو إشعار التحويل البنكي |
+| `status` | `payment_status_enum` | `NOT NULL DEFAULT 'PENDING'` | الحالات: `PENDING`, `VERIFIED`, `REJECTED` |
+| `verified_by` | `UUID` | `NULL REFERENCES users(id)` | الموظف المالي الذي طابق وأكد التحصيل |
+| `verified_at` | `TIMESTAMPTZ` | `NULL` | وقت الاعتماد المالي الرسمي |
+
+---
+
+## 11. النطاق 10: المشاركة المجتمعية والتوظيف والتطوع (Community Engagement & HR)
+
+### 11.1 جدول طلبات التوظيف الميداني (`candidate_applications`)
+استقبال وإدارة طلبات المواطنين الراغبين في العمل كعمال جمع ميدانيين لفرز واسترداد الموارد.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد لطلب التوظيف |
+| `applicant_id` | `UUID` | `REFERENCES users(id)` | حساب المستخدم مقدم الطلب |
+| `role_applied` | `VARCHAR(50)` | `NOT NULL DEFAULT 'FIELD_COLLECTOR'` | المسمى الوظيفي المطلوب |
+| `experience` | `TEXT` | `NULL` | ملخص الخبرات السابقة إن وجدت |
+| `document_refs` | `JSONB` | `NULL` | مراجع صور الهوية والوثائق الثبوتية |
+| `consent_at` | `TIMESTAMPTZ` | `NOT NULL` | إقرار المتقدم بصحة البيانات وموافقته على الشروط |
+| `status` | `applicant_status_enum`| `NOT NULL DEFAULT 'SUBMITTED'` | الحالات: `SUBMITTED`, `REVIEWED`, `SHORTLISTED`, `HIRED`, `REJECTED` |
+| `reviewer_id` | `UUID` | `NULL REFERENCES users(id)` | مسؤول التوظيف المراجع للطلب |
+| `applied_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت تقديم الطلب |
+
+### 11.2 جدول رغبات التطوع المجتمعي (`volunteer_interests`)
+تسجيل رغبات أفراد المجتمع في المشاركة في حملات التوعية البيئية دون مقابل مالي أو نقاط.
+
+| اسم الحقل | النوع البرمجي | القيود | الوصف |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | المعرف الفريد لسجل التطوع |
+| `user_id` | `UUID` | `REFERENCES users(id)` | المستخدم المتطوع |
+| `area` | `VARCHAR(100)` | `NOT NULL` | الحي أو المنطقة السكنية المفضلة للتطوع |
+| `consent_at` | `TIMESTAMPTZ` | `NOT NULL` | إقرار التطوع غير المشروط |
+| `status` | `volunteer_status_enum`| `NOT NULL DEFAULT 'REGISTERED'` | الحالات: `REGISTERED`, `CONTACTED`, `ASSIGNED_CAMPAIGN` |
+| `contacted_at` | `TIMESTAMPTZ` | `NULL` | وقت تواصل منسق المبادرات المجتمعية معه |
+| `registered_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT clock_timestamp()` | وقت تسجيل الاهتمام |
+
+---
+
+## 12. خطة الفهارس وتحسين الأداء (Indexing Strategy)
 
 ```sql
 -- 1. فهرس مكاني GiST لتسريع مطابقة النطاقات الجغرافية
@@ -308,7 +477,8 @@ WHERE status = 'PENDING_VERIFICATION';
 CREATE INDEX idx_ledger_accounts ON green_points_ledger (source_account_id, dest_account_id);
 CREATE INDEX idx_ledger_idempotency ON green_points_ledger (idempotency_key);
 
--- 4. تجزئة جدول سجلات التدقيق سنوياً (Range Partitioning by Year)
--- CREATE TABLE audit_logs_2026 PARTITION OF audit_logs
--- FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+-- 4. فهارس جدول سجل التدقيق الموحد (Unified Audit Log Indexes)
+CREATE INDEX idx_audit_logs_actor ON audit_logs (actor_id, created_at);
+CREATE INDEX idx_audit_logs_entity ON audit_logs (entity_type, entity_id);
+CREATE INDEX idx_audit_logs_created ON audit_logs (created_at DESC);
 ```

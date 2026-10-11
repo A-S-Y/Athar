@@ -43,11 +43,11 @@ sequenceDiagram
         Gateway->>Redis: DEL otp:phone (حذف الرمز فوراً لمنع إعادة الاستخدام)
         Gateway->>DB: البحث عن المستخدم بالرقم المشفر (Blind Index)
         alt مستخدم جديد
-            Gateway->>DB: إنشاء سجل جديد في users + فتح حساب نقاط ledger_accounts
+            Gateway->>DB: إنشاء سجل جديد في UserAccount وتوثيق الهاتف
         end
-        Gateway->>Gateway: توليد Access Token (15 دقيقة) + Refresh Token (30 يوماً)
-        Gateway->>DB: حفظ Refresh Token Hash في auth_sessions
-        Gateway-->>App: 200 OK { accessToken, refreshToken, userProfile }
+        Gateway->>Gateway: إصدار رمز وصول موثوق بالصلاحيات (RBAC Access Token)
+        Gateway->>DB: تحديث طابع التحقق phone_verified_at في UserAccount
+        Gateway-->>App: 200 OK { accessToken, userProfile }
         App->>App: تخزين الرموز بأمان في Flutter Secure Storage
     end
 ```
@@ -130,12 +130,17 @@ sequenceDiagram
     participant ResApp as تطبيق المواطن / المتجر
     participant AdminPortal as لوحة تحكم الإدارة (React Portal)
     participant API as خادم Fastify API
-    participant S3 as خادم تخزين المستندات (MinIO / S3)
+    participant Storage as وحدة التخزين المحلي المشفر (Contabo Storage)
     participant DB as قاعدة البيانات (PostgreSQL)
     participant Queue as طوابير المهام (BullMQ)
 
-    Resident->>ResApp: تصفح المنتجات واختيار سلعة (نقاط + حوالة بنكية)
-    ResApp->>API: POST /v1/store/orders { productId, quantity, paymentMethod }
+    Resident->>ResApp: تصفح المنتجات واختيار سلعة وإرفاق إشعار الحوالة
+    ResApp->>API: 1. رفع صورة إشعار الحوالة (POST /v1/uploads)
+    API->>Storage: حفظ صورة الإشعار في مجلد receipts المشفر محلياً على سيرفر Contabo
+    Storage-->>API: مرجع الملف المشفر (receiptFileRef)
+    API-->>ResApp: 201 Created { receiptFileRef }
+
+    ResApp->>API: 2. إنشاء الطلب: POST /v1/store/orders { items, transferRef, receiptFileRef }
     
     activate API
     API->>DB: BEGIN TRANSACTION
@@ -144,20 +149,12 @@ sequenceDiagram
         API-->>ResApp: 409 Conflict (الكمية المطلوبة غير متوفرة)
     else المخزون متاح
         API->>DB: خصم الكمية من المخزون
-        API->>DB: خصم النقاط الخضراء بالقيد المزدوج (إن كان الدفع بالنقاط)
-        API->>DB: إنشاء سجل الطلب بحالة PENDING_VERIFICATION
+        API->>DB: خصم النقاط الخضراء بالقيد المزدوج (إن وجد شق نقاط)
+        API->>DB: إنشاء سجل الطلب بحالة PENDING_VERIFICATION مع مرجع الحوالة والإشعار
         API->>DB: COMMIT TRANSACTION
         API-->>ResApp: 201 Created { orderId, orderNumber, status: "PENDING_VERIFICATION" }
     end
     deactivate API
-
-    Note over Resident,ResApp: الخطوة الثانية: رفع إشعار وسند التحويل المالي
-    Resident->>ResApp: رفع صورة إشعار الحوالة البنكية وإدخال رقم الحوالة
-    ResApp->>API: POST /v1/store/orders/:id/upload-receipt (Multipart Form)
-    API->>S3: حفظ صورة الإشعار في مجلد receipts المشفر
-    S3-->>API: رابط الصورة المستقر (proof_image_url)
-    API->>DB: UPDATE store_orders SET proof_image_url = ?, transfer_reference = ?
-    API-->>ResApp: 200 OK { message: "Receipt uploaded successfully" }
 
     Note over Staff,AdminPortal: مراجعة واعتماد الطلب من قبل الإدارة
     Staff->>AdminPortal: فتح شاشة «تدقيق طلبات المتجر والحوالات المعلقة»

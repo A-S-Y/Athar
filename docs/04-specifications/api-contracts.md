@@ -12,7 +12,7 @@
 | :--- | :--- | :--- | :--- |
 | `Authorization` | إلزامي (للنقاط المحمية) | `Bearer eyJhbGciOi...` | رمز التحقق JWT الموقع بمفتاح RSA-256 |
 | `Idempotency-Key` | إلزامي لعمليات `POST/PUT/PATCH` المالية والحساسة | `d8b5c464-9cf8-4c8d-b08e-c5db149e6f32` | مفتاح تجنب التكرار لحماية العمليات |
-| `X-Request-Id` | اختياري (يُولده Fastify تلقائياً إن غاب) | `req-89a1-43ef` | رمز تتبع دورة الطلب في سجلات Pino |
+| `X-Request-Id` | اختياري (يُولده Fastify تلقائياً إن غاب) | `req-89a1-43ef` | رمز تتبع دورة حياة الطلب في سجلات الخادم (Structured JSON Logs) |
 | `Accept-Language` | اختياري | `ar` أو `en` | لغة رسائل الأخطاء والتنبيهات (الافتراضي `ar`) |
 
 ### هيكل استجابة الأخطاء الموحد (RFC 7807 Problem Details):
@@ -262,13 +262,19 @@
 ## 6. واجهات المتجر الرقمي والتحقق الثنائي (Store & Two-Step Verification Endpoints)
 
 ### `POST /v1/store/orders`
-إنشاء طلب شراء لسلعة أو منتج بيئي من المتجر.
-* **جسم الطلب:**
+إنشاء طلب شراء لسلعة من المتجر متضمناً بيانات وإثبات التحويل البنكي في خطوة واحدة (Two-Step Step 1).
+* **الترويسة:** `Idempotency-Key: <UUID>`
+* **جسم الطلب (Multipart / JSON):**
   ```json
   {
     "productId": "018f25c5-3333-7000-8000-444455556666",
     "quantity": 1,
-    "paymentMethod": "BANK_TRANSFER"
+    "fulfillment": "DELIVERY",
+    "deliveryAddress": "مديرية المنصورة - حي عبد العزيز",
+    "paymentMethod": "BANK_TRANSFER",
+    "transferProvider": "الكريمي جوال",
+    "transferRef": "TRX-9988112",
+    "receiptFileRef": "receipts/ord-0042-proof.jpg"
   }
   ```
 * **الاستجابة الناجحة (201 Created):**
@@ -279,23 +285,7 @@
     "status": "PENDING_VERIFICATION",
     "cashAmountYer": 15000,
     "pointsSpent": 0,
-    "message": "تم إنشاء الطلب بنجاح، يرجى رفع صورة إشعار الحوالة البنكية للاعتماد"
-  }
-  ```
-
-### `POST /v1/store/orders/:id/upload-receipt`
-رفع صورة إشعار الحوالة البنكية / سند الدفع المالي (Multipart Form).
-* **الترويسة:** `Content-Type: multipart/form-data`
-* **الحقول:**
-  * `receiptImage`: ملف الصورة (JPG/PNG/PDF)
-  * `transferReference`: "TRX-9988112"
-* **الاستجابة الناجحة (200 OK):**
-  ```json
-  {
-    "orderId": "018f25c8-7777-7000-8000-888899990000",
-    "status": "PENDING_VERIFICATION",
-    "proofImageUrl": "https://storage.athar.ye/receipts/ord-0042-proof.jpg",
-    "message": "تم رفع إشعار السداد بنجاح وجارٍ مراجعته من موظف التدقيق المالي"
+    "message": "تم استلام الطلب وحجز المخزون بنجاح، وهو قيد التحقق المالي لدى الإدارة"
   }
   ```
 
@@ -316,5 +306,194 @@
     "status": "VERIFIED_PAID",
     "verifiedBy": "موظف التدقيق المالي",
     "verifiedAt": "2026-10-11T04:48:00Z"
+  }
+  ```
+
+---
+
+## 7. واجهات الشركاء التجاريين والتسليم (Resource Partners & Delivery Endpoints)
+
+### `GET /v1/partners/prices`
+استعلام لائحة أسعار شراء الخامات المفروزة الفعالة المخصصة للشريك.
+* **الأدوار المصرح لها:** `RESOURCE_PARTNER`, `ADMIN_SUPERVISOR`, `ADMIN_FINANCE`
+* **الاستجابة الناجحة (200 OK):**
+  ```json
+  [
+    {
+      "materialCode": "DRY_RECYCLABLES",
+      "nameAr": "مخلفات جافة مفروزة",
+      "pricePerKgYer": 320.00,
+      "validFrom": "2026-10-01T00:00:00Z",
+      "validTo": "2026-12-31T23:59:59Z"
+    }
+  ]
+  ```
+
+### `POST /v1/partner-deliveries`
+إنشاء محضر تسليم شحنة مفروزة من نقطة التجميع إلى شريك معتمد.
+* **الأدوار المصرح لها:** `ADMIN_SUPERVISOR`, `ADMIN_DISPATCHER`
+* **الترويسة:** `Idempotency-Key: <UUID>`
+* **جسم الطلب:**
+  ```json
+  {
+    "partnerId": "018f25d0-1111-7000-8000-222233334444",
+    "pointId": "018f25d2-5555-7000-8000-666677778888",
+    "materialCode": "DRY_RECYCLABLES",
+    "weightKg": 420.500,
+    "sourceVisits": ["VISIT-001", "VISIT-002", "VISIT-003"]
+  }
+  ```
+* **الاستجابة الناجحة (201 Created):**
+  ```json
+  {
+    "deliveryId": "018f25d5-9999-7000-8000-000011112222",
+    "status": "DELIVERED",
+    "totalValueYer": 134560.00,
+    "message": "تم توثيق محضر تسليم الشحنة بنجاح"
+  }
+  ```
+
+### `POST /v1/partner-payments/:id/verify`
+اعتماد وتدقيق سند تحصيل مستحقات الشحنة من الشريك.
+* **الأدوار المصرح لها:** `ADMIN_FINANCE`, `SUPER_ADMIN`
+* **جسم الطلب:**
+  ```json
+  {
+    "amount": 134560.00,
+    "reference": "BANK-DEP-99410",
+    "proofRef": "receipts/partners/dep-99410.pdf"
+  }
+  ```
+* **الاستجابة الناجحة (200 OK):**
+  ```json
+  {
+    "paymentId": "018f25d8-3333-7000-8000-444455556666",
+    "status": "VERIFIED",
+    "verifiedAt": "2026-10-11T05:00:00Z",
+    "message": "تم تأكيد سند التحصيل المالي رسمياً"
+  }
+  ```
+
+---
+
+## 8. واجهات استبيان الضم المبدئي للأسرة (Intake & Survey Endpoints)
+
+### `POST /v1/intake`
+بدء إجراءات تسجيل وضّم أسرة جديدة مع إحداثيات الموقع.
+* **جسم الطلب:**
+  ```json
+  {
+    "streetName": "شارع الكثيري",
+    "buildingNumber": "12",
+    "coordinates": [12.8631, 45.0102]
+  }
+  ```
+* **الاستجابة الناجحة (201 Created):**
+  ```json
+  {
+    "householdId": "018f25da-7777-7000-8000-888899990000",
+    "entityCode": "48192",
+    "status": "PENDING_SURVEY",
+    "message": "تم تسجيل موقع الأسرة وتخصيص معرّف الكيان، يرجى استكمال الاستبيان"
+  }
+  ```
+
+### `POST /v1/households/:id/survey`
+رفع واعتماد إجابات استبيان الأسرة الميداني أونلاين.
+* **جسم الطلب:**
+  ```json
+  {
+    "templateVersion": 1,
+    "answers": {
+      "familyMembersCount": 5,
+      "estimatedDailyWasteKg": 3.5,
+      "willingToSeparateOrganic": true
+    }
+  }
+  ```
+* **الاستجابة الناجحة (200 OK):**
+  ```json
+  {
+    "surveyId": "018f25dc-1111-7000-8000-222233334444",
+    "status": "SUBMITTED",
+    "message": "تم حفظ استبيان الأسرة بنجاح"
+  }
+  ```
+
+---
+
+## 9. واجهات التوظيف والتطوع المجتمعي (Community & HR Endpoints)
+
+### `POST /v1/applications`
+تقديم طلب للعمل كعامل جمع ميداني في المنصورة.
+* **جسم الطلب:**
+  ```json
+  {
+    "roleApplied": "FIELD_COLLECTOR",
+    "experience": "خبرة سنتين في النظافة الحضرية والفرز",
+    "documentRefs": ["docs/id-front.jpg", "docs/id-back.jpg"],
+    "consentTerms": true
+  }
+  ```
+* **الاستجابة الناجحة (201 Created):**
+  ```json
+  {
+    "applicationId": "018f25de-5555-7000-8000-666677778888",
+    "status": "SUBMITTED",
+    "message": "تم استلام طلب التوظيف وسيتم التواصل بعد المراجعة"
+  }
+  ```
+
+### `POST /v1/volunteer-interest`
+تسجيل رغبة المواطن في التطوع المجتمعي والتوعوي.
+* **جسم الطلب:**
+  ```json
+  {
+    "area": "حي ريمي",
+    "consentTerms": true
+  }
+  ```
+* **الاستجابة الناجحة (201 Created):**
+  ```json
+  {
+    "volunteerId": "018f25e0-9999-7000-8000-000011112222",
+    "status": "REGISTERED",
+    "message": "شكراً لاهتمامك بالتطوع لخدمة مجتمعك في أثر"
+  }
+  ```
+
+---
+
+## 10. واجهات التكليف والإسناد الميداني الصريح (Task Dispatch Endpoints)
+
+### `POST /v1/dispatch/:id/assign`
+تكليف عامل جمع بمهمة محددة وبدء مهلة الـ 10 دقائق للإقرار.
+* **الأدوار المصرح لها:** `ADMIN_DISPATCHER`, `ADMIN_SUPERVISOR`
+* **جسم الطلب:**
+  ```json
+  {
+    "workerId": "018f25a7-9e42-7000-8431-419b48f98011"
+  }
+  ```
+* **الاستجابة الناجحة (200 OK):**
+  ```json
+  {
+    "dispatchId": "018f25e2-3333-7000-8000-444455556666",
+    "status": "ASSIGNED",
+    "ackDueAt": "2026-10-11T05:10:00Z",
+    "message": "تم إسناد المهمة وإرسال إشعار Push للعامل (مهلة 10 دقائق)"
+  }
+  ```
+
+### `POST /v1/dispatch/:id/ack`
+إقرار العامل الميداني باستلام المهمة عبر تطبيقه ومنع إرسال SMS التلقائية.
+* **الأدوار المصرح لها:** `FIELD_WORKER`
+* **الاستجابة الناجحة (200 OK):**
+  ```json
+  {
+    "dispatchId": "018f25e2-3333-7000-8000-444455556666",
+    "status": "ACKNOWLEDGED",
+    "acknowledgedAt": "2026-10-11T05:03:15Z",
+    "message": "تم تسجيل إقرار العامل بنجاح وإلغاء مهلة الـ SMS"
   }
   ```

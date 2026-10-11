@@ -19,7 +19,7 @@ stateDiagram-v2
     DISPATCHED --> IN_PROGRESS: استلام العامل للمهمة وبدء التحرك
     DISPATCHED --> CANCELLED: إلغاء الطلب من قِبل المواطن قبل التحرك
 
-    IN_PROGRESS --> WEIGHED: إتمام الوزن الميداني بالميزان الذكي
+    IN_PROGRESS --> WEIGHED: إتمام تدوين أوزان الجمع الميداني يدوياً ومرجع الميزان
     IN_PROGRESS --> FAILED: تعذر الوصول للعنوان (عدم وجود المواطن)
 
     WEIGHED --> COMPLETED: تأكيد المواطن واعتماد الوزن وصرف النقاط

@@ -7,31 +7,27 @@
 
 ## 1. خوارزمية التحقق المكاني والنطاقات الجغرافية (Spatial Geofencing Logic)
 
-تضمن هذه الخوارزمية أن طلبات الجمع المنزلي وتواجد عمال النظافة تقع حصرياً داخل النطاق الجغرافي المصرح به لحي المنصورة والمربعات السكنية التابعة له.
+تضمن هذه الخوارزمية أن طلبات الجمع وتواجد العمال تقع حصرياً داخل النطاق الجغرافي المصرح به لمديرية المنصورة باستخدام الامتداد المكاني PostGIS مع حفظ رقم إصدار النطاق.
 
 ```mermaid
 flowchart TD
-    Start(["استلام طلب جديد أو موقع عامل [Lat, Lon]"]) --> BuildPoint["إنشاء نقطة هندسية: ST_SetSRID(ST_MakePoint(Lon, Lat), 4326)"]
-    BuildPoint --> QueryZone{"استعلام النطاق:<br/>SELECT id FROM geofence_zones<br/>WHERE status = 'ACTIVE'<br/>AND ST_Covers(boundary, user_point)"}
+    Start(["استلام طلب جديد أو موقع أسرة [Lat, Lon]"]) --> BuildPoint["إنشاء نقطة هندسية: ST_SetSRID(ST_MakePoint(Lon, Lat), 4326)"]
+    BuildPoint --> QueryZone{"فحص اشتمال النطاق الفعّال:<br/>SELECT id, boundary_version FROM active_nodes<br/>WHERE status = 'ACTIVE'<br/>AND ST_Covers(boundary, user_point)"}
     
-    QueryZone -- "تم العثور على نطاق مطابق" --> CheckBuffer["فحص المسافة لأقرب حاوية/شارع رئيسي:<br/>ST_DWithin(user_point, street_line, 50)"]
-    CheckBuffer --> ValidateService{"هل المربع السكني متاح للخدمة الآن؟"}
+    QueryZone -- "الموقع داخل نطاق مديرية المنصورة" --> Accept(["إنشاء طلب خدمة رسمي (ServiceRequest)<br/>وحفظ رقم نسخة النطاق boundary_version"])
     
-    ValidateService -- "نعم (ضمن جدول التشغيل)" --> Success(["قبول الطلب وتعيين Zone_ID تلقائياً"])
-    ValidateService -- "لا (خارج ساعات الوردية)" --> Defer(["حفظ الطلب وجدولته لأقرب نافذة زمنية"])
-    
-    QueryZone -- "لا يوجد نطاق يغطي النقطة" --> Reject(["رفض الطلب: 422 Unprocessable Entity<br/>'الموقع خارج نطاق التغطية التشغيلية لمديرية المنصورة'"])
+    QueryZone -- "الموقع خارج النطاق الفعّال" --> Reject(["حفظ محاولة خارج النطاق (RejectedServiceAttempt)<br/>وعرض رسالة: 'الخدمة غير متوفرة بعد في هذا النطاق'<br/>مع خيار الانضمام لقائمة الانتظار (DemandWaitlist)"])
 ```
 
 ### الاستعلام المكاني المعتمد في Fastify / PostGIS:
 ```sql
 SELECT 
-    gz.id AS zone_id,
-    gz.name AS zone_name,
-    gz.code AS zone_code
-FROM geofence_zones gz
-WHERE gz.status = 'ACTIVE'
-  AND ST_Covers(gz.boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))
+    an.id AS node_id,
+    an.name AS node_name,
+    an.boundary_version
+FROM active_nodes an
+WHERE an.status = 'ACTIVE'
+  AND ST_Covers(an.boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))
 LIMIT 1;
 ```
 
@@ -39,35 +35,32 @@ LIMIT 1;
 
 ## 2. محرك فحص الأوزان وكشف الشذوذ (Weight Verification & Anomaly Engine)
 
-تضمن هذه الخوارزمية انضباط الأوزان المدونة لمساري الفرز (عضوي وجاف) والمرفوض، ومنع تسجيل أوزان غير معقولة تتجاوز السقف الاستهلاكي للأسرة.
+تضمن هذه الخوارزمية انضباط الأوزان المدونة لمساري الفرز (عضوي وجاف) والمرفوض، ومنع تسجيل أوزان غير معقولة تتجاوز السقف الأقصى المعتمد للزيارة.
 
 ```mermaid
 flowchart TD
-    WeightIn(["تدوين أوزان الزيارة: عضوي، جاف، مرفوض، ومرجع الميزان"]) --> CheckNegative{"هل أوزان العضوي والجاف >= 0 والوزن الإجمالي > 0 ؟"}
+    WeightIn(["تدوين أوزان الزيارة: عضوي، جاف، مرفوض، ومرجع الميزان"]) --> CheckNegative{"هل أوزان العضوي والجاف والمرفوض >= 0 والوزن الإجمالي > 0 ؟"}
     
-    CheckNegative -- "لا" --> ErrZero(["رفض العملية: أوزان غير صالحة"])
+    CheckNegative -- "لا (قيم سالبة أو صفرية)" --> ErrZero(["رفض العملية: أوزان غير صالحة"])
     
-    CheckNegative -- "نعم" --> FetchLimits["جلب سقف الوزن المعتمد للأسرة والمتوسط التاريخي"]
-    FetchLimits --> CheckAbsoluteMax{"هل إجمالي الوزن > السقف الأقصى للزيارة؟<br/>(مثال: > 40 كجم للأسرة الواحدة)"}
+    CheckNegative -- "نعم" --> CheckThreshold{"هل وزن العضوي أو الجاف يتجاوز السقف الأقصى المعتمد؟<br/>(max_threshold_kg للمسار الواحد)"}
     
-    CheckAbsoluteMax -- "نعم (تجاوز السقف)" --> FlagAnomaly1["رصد شذوذ قطعي:<br/>حفظ الزيارة بحالة UNDER_REVIEW<br/>السبب: EXCEEDED_MAX_THRESHOLD"]
+    CheckThreshold -- "نعم (تجاوز السقف الأقصى)" --> FlagAnomaly["رصد شذوذ وزني قطعي:<br/>تسجيل الزيارة بحالة UNDER_REVIEW<br/>مع تجميد قيد النقاط وإحالة المراجعة للمشرف"]
     
-    CheckAbsoluteMax -- "لا" --> CheckSpike{"هل الوزن > (متوسط الأسرة × 3.5) ؟<br/>(قفزة غير مبررة مقارنة بالمتوسط)"}
-    CheckSpike -- "نعم (قفزة شاذة)" --> FlagAnomaly2["رصد شذوذ إحصائي:<br/>حفظ الزيارة بحالة UNDER_REVIEW<br/>السبب: STATISTICAL_WEIGHT_SPIKE"]
+    CheckThreshold -- "لا (ضمن السقف الطبيعي)" --> ApproveWeight["اعتماد الزيارة مباشرة:<br/>حالة الزيارة = APPROVED"]
     
-    CheckSpike -- "لا" --> ApproveWeight["اعتماد الزيارة مباشرة:<br/>حالة الزيارة = APPROVED"]
+    FlagAnomaly --> SupervisorReview["مراجعة المشرف الميداني للزيارة وصورة الإثبات خلال 24 ساعة"]
+    SupervisorReview -- "اعتماد المشرف" --> MintPoints["احتساب وصرف النقاط لمساري العضوي والجاف فقط (المرفوض 0 نقطة)"]
+    SupervisorReview -- "رفض المشرف" --> RejectVisit(["رفض الزيارة وإغلاقها دون أي نقاط"])
     
-    FlagAnomaly1 --> HoldPoints["تعليق صرف النقاط وإحالة الزيارة للمشرف الميداني للتحقق خلال 24 ساعة"]
-    FlagAnomaly2 --> HoldPoints
-    
-    ApproveWeight --> MintPoints["احتساب وصرف النقاط لمساري العضوي والجاف فقط (المرفوض 0 نقطة)"]
+    ApproveWeight --> MintPoints
 ```
 
 ---
 
-## 3. آلية تجنب تكرار العمليات عبر مفاتيح عدم التكرار (Distributed Idempotency Engine)
+## 3. آلية تجنب تكرار العمليات عبر مفاتيح عدم التكرار (ACID Idempotency Engine)
 
-نظراً لتذبذب شبكة الإنترنت في الميدان (3G/4G)، قد يضغط المستخدم أو العامل زر الإرسال مرتين، أو يعيد تطبيق Flutter المحاولة تلقائياً. تطبق المنصة حماية متقدمة عبر مفتاح `Idempotency-Key`.
+تطبق المنصة حماية متقدمة وموثوقة لمنع تكرار العمليات المالية والتشغيلية عبر ترويسة `Idempotency-Key` المستندة إلى معاملات وقفل PostgreSQL الذري (جدول 31 من الوثيقة المرجعية).
 
 ```mermaid
 flowchart TD
@@ -76,20 +69,21 @@ flowchart TD
     CheckHeader -- "غير موجودة" --> GenHash["توليد تجزئة فريدة من: (User_ID + Method + Body)"]
     CheckHeader -- "موجودة" --> UseKey["اعتماد المفتاح الممرر"]
     
-    GenHash --> RedisCheck
-    UseKey --> RedisCheck
+    GenHash --> BeginTx
+    UseKey --> BeginTx
     
-    RedisCheck["فحص القفل الذري في Redis:<br/>SET lock:key token NX EX 30"] --> IsLocked{"هل نجح حجز القفل في Redis؟"}
+    BeginTx["بدء معاملة ذرية: BEGIN TRANSACTION (PostgreSQL)"] --> LockRow["فحص وحجز مفتاح عدم التكرار:<br/>SELECT response_status, response_body FROM idempotency_keys<br/>WHERE key = $1 FOR UPDATE"]
     
-    IsLocked -- "فشل (الطلب قيد المعالجة الآن)" --> WaitResponse["انتظار 500ms أو إرجاع:<br/>409 Conflict: Concurrent Request in Progress"]
+    LockRow --> CheckStatus{"هل المفتاح مسجل مسبقاً في قاعدة البيانات؟"}
     
-    IsLocked -- "نجح (الطلب جديد)" --> CheckDB{"هل مفتاح Idempotency-Key مسجل مسبقاً في قاعدة البيانات؟"}
+    CheckStatus -- "مسجل ومكتمل بنجاح" --> ReturnCached["إرجاع نفس الاستجابة السابقة مباشرة (200 OK)<br/>دون إعادة تنفيذ أي عمليات مالية أو خصم"]
     
-    CheckDB -- "نعم مسجل ومكتمل سابقاً" --> ReturnCached["إرجاع نفس الاستجابة المخزنة السابقة مباشرة (200 OK)<br/>دون إعادة تنفيذ أي عمليات مالية أو خصم"]
+    CheckStatus -- "قيد المعالجة (تزامن متزامن)" --> Return409(["إرجاع: 409 Conflict<br/>Concurrent Request in Progress"])
     
-    CheckDB -- "لا (طلب أول مرة)" --> ExecuteBusiness["تنفيذ منطق الأعمال داخل ACID Transaction"]
-    ExecuteBusiness --> SaveResult["حفظ النتيجة ومفتاح عدم التكرار في PostgreSQL"]
-    SaveResult --> ReleaseLock["حذف القفل الذري من Redis وإرجاع النتيجة 201 Created"]
+    CheckStatus -- "طلب جديد أول مرة" --> ExecLogic["تنفيذ منطق الأعمال الذري (خصم، وزن، نقاط)"]
+    ExecLogic --> SaveResp["حفظ النتيجة والاستجابة في جدول idempotency_keys"]
+    SaveResp --> CommitTx["اعتماد المعاملة: COMMIT TRANSACTION"]
+    CommitTx --> Success201(["إرجاع النتيجة 201 Created للمستخدم"])
 ```
 
 ---
